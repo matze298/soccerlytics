@@ -1,0 +1,48 @@
+minimum_prek_version = "0.5.5"
+
+[[repos]]
+repo = "builtin"
+hooks = [
+    { id = "check-toml" },
+    { id = "check-yaml" },
+    { id = "check-merge-conflict" },
+    { id = "check-added-large-files", args = ["--maxkb=1024"] },
+]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "ruff-check"
+name = "Ruff lint"
+entry = "uv run ruff check ."
+language = "system"
+pass_filenames = false
+
+[[repos.hooks]]
+id = "ruff-format"
+name = "Ruff format"
+entry = "uv run ruff format --check ."
+language = "system"
+pass_filenames = false
+
+[[repos.hooks]]
+id = "ty-check"
+name = "ty check"
+entry = "uv run ty check"
+language = "system"
+pass_filenames = false
+
+[[repos.hooks]]
+id = "uv-lock"
+name = "uv lock check"
+entry = "uv lock --check"
+language = "system"
+pass_filenames = false
+
+[[repos.hooks]]
+id = "import-linter"
+name = "Package layer check"
+entry = "uv run lint-imports"
+language = "system"
+pass_filenames = false

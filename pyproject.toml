@@ -1,0 +1,80 @@
+[project]
+name = "soccer-workspace"
+version = "0.1.0"
+description = "Workspace for soccer data analysis and visualizations"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "marimo>=0.19,<1",
+    "polars>=2.0,<3",
+    "soccer-analysis",
+    "soccer-sources",
+    "soccer-visualization",
+    "typer>=0.20,<1",
+]
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.15,<3",
+    "prek>=0.5.5,<1",
+    "pytest>=9.1,<10",
+    "ruff>=0.17,<1",
+    "ty>=0.0.86,<1",
+]
+understat = ["soccerdata>=1.9.1,<2"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["soccer-analysis", "soccer-sources", "soccer-visualization"]
+
+[tool.uv.sources]
+soccer-analysis = { workspace = true }
+soccer-sources = { workspace = true }
+soccer-visualization = { workspace = true }
+
+[tool.importlinter]
+root_packages = ["soccer_visualization", "soccer_analysis", "soccer_sources"]
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "Workspace package layers"
+type = "layers"
+layers = ["soccer_visualization", "soccer_analysis", "soccer_sources"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["COM812"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402", "F401", "INP001", "B018"]
+"soccer-*/tests/**/*.py" = ["S101", "INP001"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ty.rules]
+dynamic-function-decorator-return = "error"
+missing-type-argument = "error"
+possibly-unresolved-reference = "warn"
+unsound-return-statement = "error"
+
+[tool.ty.terminal]
+error-on-warning = true
+
+[tool.pytest.ini_options]
+testpaths = [
+    "soccer-analysis/tests",
+    "soccer-sources/tests",
+    "soccer-visualization/tests",
+]
+pythonpath = [
+    "soccer-sources/src",
+    "soccer-analysis/src",
+    "soccer-visualization/src",
+]
