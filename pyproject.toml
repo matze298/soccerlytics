@@ -21,8 +21,6 @@ dev = [
     "ruff>=0.17,<1",
     "ty>=0.0.86,<1",
 ]
-understat = ["soccerdata>=1.9.1,<2"]
-
 [tool.uv]
 package = false
 

@@ -120,7 +120,7 @@ def test_team_match_loader_rebuilds_legacy_cache_with_xga(tmp_path: Path, monkey
                 }
             ]
 
-    monkeypatch.setattr("soccer_sources.understat._reader", lambda *_args: CachedReader())
+    monkeypatch.setattr("soccer_sources.understat._reader", lambda *_args: (CachedReader(), "1.9.1"))
 
     result = load_team_match_stats("bundesliga", 2025, allow_scraping=True, cache_dir=tmp_path)
 

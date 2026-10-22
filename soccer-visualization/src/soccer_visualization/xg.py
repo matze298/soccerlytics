@@ -238,6 +238,14 @@ TEAM_SECONDARY_COLORS = {
     "Troyes": "#FFFFFF",
 }
 
+LEAGUE_COLORS = {
+    "bundesliga": "#D71920",
+    "premier-league": "#6C1D45",
+    "la-liga": "#F4A900",
+    "serie-a": "#0066B3",
+    "ligue-1": "#091C3E",
+}
+
 
 def _add_linear_regression(figure: go.Figure, data: pl.DataFrame) -> float | None:
     """Add an ordinary least-squares goals-on-xG line and return its R-squared."""
@@ -408,13 +416,7 @@ def _add_team_markers(
         source = _logo_source(path)
         color = _team_marker_colors(team)[0]
         if league is not None:
-            color = {
-                "bundesliga": "#D71920",
-                "premier-league": "#6C1D45",
-                "la-liga": "#F4A900",
-                "serie-a": "#0066B3",
-                "ligue-1": "#091C3E",
-            }.get(league, color)
+            color = LEAGUE_COLORS.get(league, color)
         colors.append(color)
         if source is None:
             missing.append(row)
@@ -679,6 +681,96 @@ def multi_league_team_xg_for_against_per90(
             showarrow=False,
             font={"size": 10, "color": "#555555"},
         )
+    return figure
+
+
+def multi_league_xg_for_against_distribution(summary: pl.DataFrame, season: int) -> go.Figure:
+    """Show league means with team-level plus/minus one standard deviation areas."""
+    required = {
+        "league",
+        "teams",
+        "mean_xg_for_per90",
+        "std_xg_for_per90",
+        "mean_xg_against_per90",
+        "std_xg_against_per90",
+    }
+    missing = required.difference(summary.columns)
+    if summary.height and missing:
+        raise ValueError(f"League xG summary is missing columns: {', '.join(sorted(missing))}")
+
+    figure = go.Figure()
+    figure.update_layout(
+        title=f"League mean xG for and against per 90 ({season}/{season + 1}) · mean ± 1 SD",
+        xaxis_title="Mean team xG for per 90",
+        yaxis_title="Mean team xG against per 90",
+        width=900,
+        height=900,
+        legend_title="League",
+    )
+    if summary.is_empty():
+        figure.update_xaxes(range=[0.0, 1.0], constrain="domain")
+        figure.update_yaxes(range=[0.0, 1.0], scaleanchor="x", scaleratio=1, constrain="domain")
+        return figure
+    points = summary.drop_nulls(list(required)).sort("league")
+    if points.is_empty():
+        figure.update_xaxes(range=[0.0, 1.0], constrain="domain")
+        figure.update_yaxes(range=[0.0, 1.0], scaleanchor="x", scaleratio=1, constrain="domain")
+        return figure
+
+    lower_bounds: list[float] = [0.0]
+    upper_bounds: list[float] = [0.0]
+    for row in points.iter_rows(named=True):
+        league = str(row["league"])
+        color = LEAGUE_COLORS.get(league, "#52677F")
+        mean_x = float(row["mean_xg_for_per90"])
+        std_x = float(row["std_xg_for_per90"])
+        mean_y = float(row["mean_xg_against_per90"])
+        std_y = float(row["std_xg_against_per90"])
+        x0, x1 = mean_x - std_x, mean_x + std_x
+        y0, y1 = mean_y - std_y, mean_y + std_y
+        lower_bounds.extend((x0, y0))
+        upper_bounds.extend((x1, y1))
+        figure.add_shape(
+            type="rect",
+            name=f"{league} ±1 SD",
+            x0=x0,
+            x1=x1,
+            y0=y0,
+            y1=y1,
+            fillcolor=color,
+            opacity=0.16,
+            line={"color": color, "width": 2},
+            layer="below",
+            showlegend=False,
+        )
+        league_name = league.replace("-", " ").title()
+        figure.add_trace(
+            go.Scatter(
+                x=[mean_x],
+                y=[mean_y],
+                mode="markers+text",
+                name=league_name,
+                text=[league_name],
+                textposition="top center",
+                marker={"color": color, "size": 13, "symbol": "diamond"},
+                customdata=[[row["teams"], std_x, std_y]],
+                hovertemplate=(
+                    f"<b>{league_name}</b><br>Teams: %{{customdata[0]}}<br>"
+                    "Mean xG for/90: %{x:.2f} ± %{customdata[1]:.2f}<br>"
+                    "Mean xG against/90: %{y:.2f} ± %{customdata[2]:.2f}<extra></extra>"
+                ),
+            )
+        )
+
+    lower = min(lower_bounds)
+    upper = max(upper_bounds)
+    if upper == lower:
+        upper = lower + 1.0
+    padding = (upper - lower) * 0.08
+    lower -= padding if lower < 0 else 0.0
+    upper += padding
+    figure.update_xaxes(range=[lower, upper], constrain="domain")
+    figure.update_yaxes(range=[lower, upper], scaleanchor="x", scaleratio=1, constrain="domain")
     return figure
 
 

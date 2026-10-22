@@ -8,6 +8,7 @@ from soccer_visualization.xg import (
     multi_league_player_goals_vs_xg,
     multi_league_team_goals_vs_xg,
     multi_league_team_xg_for_against_per90,
+    multi_league_xg_for_against_distribution,
     player_goals_vs_xg,
     shot_map,
     team_goals_vs_xg,
@@ -231,3 +232,29 @@ def test_big_five_xg_for_against_plot_marks_four_quadrants(tmp_path: Path) -> No
     assert figure.layout.yaxis.scaleratio == 1
     assert figure.layout.width == figure.layout.height == 900
     assert {annotation.text for annotation in figure.layout.annotations} == set(summary["quadrant"].to_list())
+
+
+def test_league_xg_for_against_distribution_shows_mean_and_one_sd_area() -> None:
+    summary = pl.DataFrame(
+        {
+            "league": ["bundesliga", "premier-league"],
+            "teams": [18, 20],
+            "mean_xg_for_per90": [2.0, 1.8],
+            "std_xg_for_per90": [1.0, 0.6],
+            "mean_xg_against_per90": [1.0, 1.2],
+            "std_xg_against_per90": [0.5, 0.4],
+        }
+    )
+
+    figure = multi_league_xg_for_against_distribution(summary, 2026)
+
+    means = {trace.name: trace for trace in figure.data}
+    bundesliga_area = next(shape for shape in figure.layout.shapes if shape.name == "bundesliga ±1 SD")
+    assert list(means["Bundesliga"].x) == [2.0]
+    assert list(means["Bundesliga"].y) == [1.0]
+    assert list(means) == ["Bundesliga", "Premier League"]
+    assert (bundesliga_area.x0, bundesliga_area.x1) == (1.0, 3.0)
+    assert (bundesliga_area.y0, bundesliga_area.y1) == (0.5, 1.5)
+    assert figure.layout.xaxis.range == figure.layout.yaxis.range
+    assert figure.layout.yaxis.scaleanchor == "x"
+    assert "mean ± 1 SD" in figure.layout.title.text

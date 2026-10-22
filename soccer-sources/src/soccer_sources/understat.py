@@ -2,8 +2,6 @@
 
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
-from importlib import import_module
-from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any
 
@@ -209,17 +207,17 @@ def normalize_shots(
     return _to_frame(rows, SHOTS_SCHEMA)
 
 
-def _reader(league: League, season: int, refresh: bool, cache_dir: Path) -> Any:
-    try:
-        soccerdata = import_module("soccerdata")
-    except ImportError as error:
-        raise RuntimeError("Understat access requires the optional soccerdata dependency") from error
-    return soccerdata.Understat(
+def _reader(league: League, season: int, refresh: bool, cache_dir: Path) -> tuple[Any, str]:
+    # Keep this import inside the opted-in cache-miss path: soccerdata configures file logging at import time.
+    import soccerdata
+
+    reader = soccerdata.Understat(
         leagues=league.soccerdata_code,
         seasons=league.season_label(season),
         no_cache=refresh,
         data_dir=cache_dir / "understat" / "raw",
     )
+    return reader, soccerdata.__version__
 
 
 def _load_table(
@@ -245,10 +243,10 @@ def _load_table(
             "No cached Understat table exists; site access is opt-in. Review docs/data-sources.md before enabling it."
         )
         raise RuntimeError(message)
-    reader = _reader(selected, season, refresh, cache_dir)
+    reader, source_version = _reader(selected, season, refresh, cache_dir)
     method_reader = getattr(reader, method)
     raw = method_reader(force_cache=True) if force_provider_cache else method_reader()
-    frame = normalize(raw, selected, season, datetime.now(UTC), package_version("soccerdata"))
+    frame = normalize(raw, selected, season, datetime.now(UTC), source_version)
     write_parquet(frame, path)
     return frame
 

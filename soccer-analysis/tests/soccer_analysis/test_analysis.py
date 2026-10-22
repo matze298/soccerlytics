@@ -3,6 +3,7 @@
 import polars as pl
 import pytest
 from soccer_analysis.xg import (
+    league_xg_for_against_summary,
     multi_league_team_xg_summary,
     player_goal_differences,
     team_xg_for_against_per90,
@@ -139,3 +140,26 @@ def test_team_xg_for_against_summary_calculates_per90_and_global_quadrants() -> 
     assert strong["xg_against_per90"] == pytest.approx(0.5)
     assert strong["quadrant"] == "High attack · strong defense"
     assert leaky["quadrant"] == "Low attack · leaky defense"
+
+
+def test_league_xg_for_against_summary_reports_means_and_team_spread() -> None:
+    teams = pl.DataFrame(
+        {
+            "league": ["bundesliga", "bundesliga", "premier-league"],
+            "team": ["Attack A", "Attack B", "Single team"],
+            "xg_for_per90": [1.0, 3.0, 0.8],
+            "xg_against_per90": [0.5, 1.5, 1.4],
+        }
+    )
+
+    summary = league_xg_for_against_summary(teams)
+
+    bundesliga = summary.filter(pl.col("league") == "bundesliga").row(0, named=True)
+    premier_league = summary.filter(pl.col("league") == "premier-league").row(0, named=True)
+    assert bundesliga["teams"] == 2
+    assert bundesliga["mean_xg_for_per90"] == pytest.approx(2.0)
+    assert bundesliga["std_xg_for_per90"] == pytest.approx(1.0)
+    assert bundesliga["mean_xg_against_per90"] == pytest.approx(1.0)
+    assert bundesliga["std_xg_against_per90"] == pytest.approx(0.5)
+    assert premier_league["teams"] == 1
+    assert premier_league["std_xg_for_per90"] == pytest.approx(0.0)

@@ -159,3 +159,41 @@ def team_xg_for_against_per90(team_match_stats: pl.DataFrame) -> pl.DataFrame:
         .cast(schema)
         .sort("league", "team")
     )
+
+
+def league_xg_for_against_summary(team_summary: pl.DataFrame) -> pl.DataFrame:
+    """Summarize each league's team-level xG-for/against mean and population spread."""
+    schema = pl.Schema(
+        {
+            "league": pl.String,
+            "teams": pl.UInt32,
+            "mean_xg_for_per90": pl.Float64,
+            "std_xg_for_per90": pl.Float64,
+            "mean_xg_against_per90": pl.Float64,
+            "std_xg_against_per90": pl.Float64,
+        }
+    )
+    if team_summary.is_empty():
+        return pl.DataFrame(schema=schema)
+
+    required = {"league", "team", "xg_for_per90", "xg_against_per90"}
+    missing = required.difference(team_summary.columns)
+    if missing:
+        raise ValueError(f"Team xG summary is missing columns: {', '.join(sorted(missing))}")
+
+    return (
+        team_summary.select("league", "team", "xg_for_per90", "xg_against_per90")
+        .with_columns(pl.col("xg_for_per90", "xg_against_per90").cast(pl.Float64, strict=False))
+        .drop_nulls(["league", "team", "xg_for_per90", "xg_against_per90"])
+        .group_by("league")
+        .agg(
+            pl.col("team").n_unique().cast(pl.UInt32).alias("teams"),
+            pl.col("xg_for_per90").mean().alias("mean_xg_for_per90"),
+            pl.col("xg_for_per90").std(ddof=0).alias("std_xg_for_per90"),
+            pl.col("xg_against_per90").mean().alias("mean_xg_against_per90"),
+            pl.col("xg_against_per90").std(ddof=0).alias("std_xg_against_per90"),
+        )
+        .select(schema.names())
+        .cast(schema)
+        .sort("league")
+    )

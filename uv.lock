@@ -1374,10 +1374,14 @@ version = "0.1.0"
 source = { editable = "soccer-sources" }
 dependencies = [
     { name = "polars" },
+    { name = "soccerdata" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "polars", specifier = ">=2.0,<3" }]
+requires-dist = [
+    { name = "polars", specifier = ">=2.0,<3" },
+    { name = "soccerdata", specifier = ">=1.9.1,<2" },
+]
 
 [[package]]
 name = "soccer-visualization"
@@ -1417,9 +1421,6 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
 ]
-understat = [
-    { name = "soccerdata" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -1439,7 +1440,6 @@ dev = [
     { name = "ruff", specifier = ">=0.17,<1" },
     { name = "ty", specifier = ">=0.0.86,<1" },
 ]
-understat = [{ name = "soccerdata", specifier = ">=1.9.1,<2" }]
 
 [[package]]
 name = "soccerdata"
