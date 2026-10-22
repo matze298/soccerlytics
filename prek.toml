@@ -5,8 +5,14 @@ repo = "builtin"
 hooks = [
     { id = "check-toml" },
     { id = "check-yaml" },
+    { id = "check-json" },
     { id = "check-merge-conflict" },
+    { id = "check-case-conflict" },
+    { id = "check-shebang-scripts-are-executable" },
+    { id = "detect-private-key" },
     { id = "check-added-large-files", args = ["--maxkb=1024"] },
+    { id = "trailing-whitespace", args = ["--markdown-linebreak-ext=md"] },
+    { id = "end-of-file-fixer", exclude = "scripts/__marimo__/session/" },
 ]
 
 [[repos]]
@@ -15,16 +21,18 @@ repo = "local"
 [[repos.hooks]]
 id = "ruff-check"
 name = "Ruff lint"
-entry = "uv run ruff check ."
+entry = "uv run ruff check --fix ."
 language = "system"
 pass_filenames = false
+always_run = true
 
 [[repos.hooks]]
 id = "ruff-format"
 name = "Ruff format"
-entry = "uv run ruff format --check ."
+entry = "uv run ruff format ."
 language = "system"
 pass_filenames = false
+always_run = true
 
 [[repos.hooks]]
 id = "ty-check"
@@ -32,6 +40,7 @@ name = "ty check"
 entry = "uv run ty check"
 language = "system"
 pass_filenames = false
+always_run = true
 
 [[repos.hooks]]
 id = "uv-lock"
@@ -39,6 +48,7 @@ name = "uv lock check"
 entry = "uv lock --check"
 language = "system"
 pass_filenames = false
+always_run = true
 
 [[repos.hooks]]
 id = "import-linter"
@@ -46,3 +56,4 @@ name = "Package layer check"
 entry = "uv run lint-imports"
 language = "system"
 pass_filenames = false
+always_run = true

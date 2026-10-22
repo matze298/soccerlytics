@@ -1,14 +1,16 @@
 """Plotly figures for team and player expected-goal analysis."""
 
 import base64
-from collections.abc import Mapping
-from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 from soccer_analysis.xg import team_xg_summary
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from pathlib import Path
 
 TEAM_COLORS = {
     "Augsburg": "#BA3733",
@@ -245,12 +247,17 @@ LEAGUE_COLORS = {
     "serie-a": "#0066B3",
     "ligue-1": "#091C3E",
 }
+_MIN_REGRESSION_POINTS = 2
 
 
 def _add_linear_regression(figure: go.Figure, data: pl.DataFrame) -> float | None:
-    """Add an ordinary least-squares goals-on-xG line and return its R-squared."""
+    """Add an ordinary least-squares goals-on-xG line and return its R-squared.
+
+    Returns:
+        The coefficient of determination, or ``None`` when a line cannot be fit.
+    """
     points = data.select("xg", "goals").drop_nulls().rows()
-    if len(points) < 2:
+    if len(points) < _MIN_REGRESSION_POINTS:
         return None
 
     x_values, y_values = zip(*points, strict=True)
@@ -290,8 +297,8 @@ def _set_equal_xy_scale(figure: go.Figure, data: pl.DataFrame, x_column: str, y_
         float(value) for column in (x_column, y_column) for value in data.get_column(column).drop_nulls().to_list()
     ]
     if values:
-        lower = min(0.0, min(values))
-        upper = max(0.0, max(values))
+        lower = min(0.0, *values)
+        upper = max(0.0, *values)
         padding = (upper - lower) * 0.08
         lower -= padding if lower < 0 else 0.0
         upper += padding
@@ -336,9 +343,11 @@ def _player_scatter(
         required.add("league")
     missing = required.difference(stats.columns)
     if missing:
-        raise ValueError(f"Player statistics are missing columns: {', '.join(sorted(missing))}")
+        msg = f"Player statistics are missing columns: {', '.join(sorted(missing))}"
+        raise ValueError(msg)
     if label_limit < 0:
-        raise ValueError("label_limit must be zero or greater")
+        msg = "label_limit must be zero or greater"
+        raise ValueError(msg)
 
     columns = ["player", "team", "goals", "xg"]
     if league_detail:
@@ -457,8 +466,8 @@ def _add_team_markers(
         )
     )
     if missing:
-        missing_x = [float(cast(float, row["xg"])) for row in missing]
-        missing_y = [float(cast(float, row["goals"])) for row in missing]
+        missing_x = [float(cast("float", row["xg"])) for row in missing]
+        missing_y = [float(cast("float", row["goals"])) for row in missing]
         figure.add_trace(
             go.Scatter(
                 x=missing_x,
@@ -478,7 +487,11 @@ def team_goals_vs_xg(
     *,
     logo_paths: Mapping[str, Path] | None = None,
 ) -> go.Figure:
-    """Plot actual team goals against provider-specific expected goals."""
+    """Plot actual team goals against provider-specific expected goals.
+
+    Returns:
+        A Plotly figure with team crests, regression, and equal axis scales.
+    """
     summary = (
         team_xg_summary(team_match_stats)
         .drop_nulls(["goals", "xg"])
@@ -499,7 +512,11 @@ def team_goals_vs_xg(
 
 
 def player_goals_vs_xg(player_stats: pl.DataFrame, season: int, *, label_limit: int = 10) -> go.Figure:
-    """Plot player goals against xG, with goal over/under-performance on hover."""
+    """Plot player goals against xG, with goal over/under-performance on hover.
+
+    Returns:
+        A Plotly figure with player labels, team colors, and regression.
+    """
     return _player_scatter(
         player_stats,
         title=f"Bundesliga player goals vs xG ({season}/{season + 1})",
@@ -515,7 +532,11 @@ def multi_league_player_goals_vs_xg(
     *,
     label_limit: int = 10,
 ) -> go.Figure:
-    """Plot Big Five player goals against xG with league included in hover details."""
+    """Plot Big Five player goals against xG with league included in hover details.
+
+    Returns:
+        A Plotly figure with player labels, league hover details, and regression.
+    """
     return _player_scatter(
         player_stats,
         title=f"Big Five player goals vs xG ({season}/{season + 1})",
@@ -531,7 +552,11 @@ def multi_league_team_goals_vs_xg(
     *,
     logo_paths: Mapping[tuple[str, str], Path] | None = None,
 ) -> go.Figure:
-    """Plot Big Five team goals against xG with league identity in hover details."""
+    """Plot Big Five team goals against xG with league identity in hover details.
+
+    Returns:
+        A Plotly figure with team crests, league hover details, and regression.
+    """
     points = summary.drop_nulls(["goals", "xg"]).with_columns(
         pl.col("xg").cast(pl.Float64), pl.col("goals").cast(pl.Float64)
     )
@@ -550,13 +575,17 @@ def multi_league_team_goals_vs_xg(
     return figure
 
 
-def multi_league_team_xg_for_against_per90(
+def multi_league_team_xg_for_against_per90(  # ruff: ignore[too-many-locals] - Plotly needs separate geometry and hover data.
     summary: pl.DataFrame,
     season: int,
     *,
     logo_paths: Mapping[tuple[str, str], Path] | None = None,
 ) -> go.Figure:
-    """Plot Big Five team xG for and against per 90 with four global quadrants."""
+    """Plot Big Five team xG for and against per 90 with four global quadrants.
+
+    Returns:
+        A Plotly figure with quadrants, club crests, and hover details.
+    """
     points = summary.drop_nulls(["league", "team", "xg_for_per90", "xg_against_per90"])
     figure = go.Figure()
     figure.update_layout(
@@ -582,8 +611,8 @@ def multi_league_team_xg_for_against_per90(
     }
     average_x = points.get_column("xg_for_per90").mean()
     average_y = points.get_column("xg_against_per90").mean()
-    x_values = [float(cast(float, value)) for value in points.get_column("xg_for_per90").to_list()]
-    y_values = [float(cast(float, value)) for value in points.get_column("xg_against_per90").to_list()]
+    x_values = [float(cast("float", value)) for value in points.get_column("xg_for_per90").to_list()]
+    y_values = [float(cast("float", value)) for value in points.get_column("xg_against_per90").to_list()]
     x_min = min(0.0, *x_values, *y_values)
     x_max = max(x_values + y_values) * 1.08
     y_min = x_min
@@ -651,8 +680,8 @@ def multi_league_team_xg_for_against_per90(
     if missing_rows:
         figure.add_trace(
             go.Scatter(
-                x=[float(cast(float, row["xg_for_per90"])) for row in missing_rows],
-                y=[float(cast(float, row["xg_against_per90"])) for row in missing_rows],
+                x=[float(cast("float", row["xg_for_per90"])) for row in missing_rows],
+                y=[float(cast("float", row["xg_against_per90"])) for row in missing_rows],
                 mode="markers",
                 name="Missing crest fallback",
                 marker={"size": 11, "color": missing_colors, "line": {"color": "#FFFFFF", "width": 1}},
@@ -684,8 +713,17 @@ def multi_league_team_xg_for_against_per90(
     return figure
 
 
-def multi_league_xg_for_against_distribution(summary: pl.DataFrame, season: int) -> go.Figure:
-    """Show league means with team-level plus/minus one standard deviation areas."""
+def multi_league_xg_for_against_distribution(  # ruff: ignore[too-many-locals] - The figure uses per-league means, spreads, and fill traces.
+    summary: pl.DataFrame, season: int
+) -> go.Figure:
+    """Show league means with team-level plus/minus one standard deviation areas.
+
+    Returns:
+        A Plotly figure with one mean and spread area per league.
+
+    Raises:
+        ValueError: If a non-empty summary is missing required columns.
+    """
     required = {
         "league",
         "teams",
@@ -696,7 +734,8 @@ def multi_league_xg_for_against_distribution(summary: pl.DataFrame, season: int)
     }
     missing = required.difference(summary.columns)
     if summary.height and missing:
-        raise ValueError(f"League xG summary is missing columns: {', '.join(sorted(missing))}")
+        msg = f"League xG summary is missing columns: {', '.join(sorted(missing))}"
+        raise ValueError(msg)
 
     figure = go.Figure()
     figure.update_layout(
@@ -775,7 +814,11 @@ def multi_league_xg_for_against_distribution(summary: pl.DataFrame, season: int)
 
 
 def shot_map(shots: pl.DataFrame, match_id: str | None = None) -> go.Figure:
-    """Plot Understat shot locations in their provider-native coordinate system."""
+    """Plot Understat shot locations in their provider-native coordinate system.
+
+    Returns:
+        A Plotly figure of selected shots, if available.
+    """
     selected = shots
     if match_id is not None:
         selected = selected.filter(pl.col("source_match_id") == match_id)

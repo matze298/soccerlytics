@@ -2,12 +2,22 @@
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Self
 
 from soccer_sources.cli import app
 from soccer_sources.leagues import get_league
-from soccer_sources.logos import _catalog_directory, fetch_team_logos, load_team_logos, normalize_team_name
+from soccer_sources.logos import (
+    _catalog_directory,  # ruff: ignore[import-private-name] - Test explicit provider folder mappings without network access.
+    fetch_team_logos,
+    load_team_logos,
+    normalize_team_name,
+)
 from typer.testing import CliRunner
+
+if TYPE_CHECKING:
+    from urllib.request import Request
+
+    import pytest
 
 
 def test_normalize_team_name_handles_accents_and_catalog_suffixes() -> None:
@@ -70,15 +80,16 @@ def test_provider_team_aliases_cover_names_returned_by_big_five_caches() -> None
     assert all(normalize_team_name(source) == normalize_team_name(catalog) for source, catalog in aliases.items())
 
 
-def test_load_team_logos_is_cache_only(tmp_path: Path, monkeypatch: Any) -> None:
+def test_load_team_logos_is_cache_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     logo_dir = tmp_path / "logos" / "bundesliga" / "2026"
     logo_dir.mkdir(parents=True)
     logo = logo_dir / "Bayern Munich.png"
     logo.write_bytes(b"png bytes")
     (logo_dir / "teams.json").write_text(json.dumps({"Bayern München": logo.name}), encoding="utf-8")
 
-    def unexpected_request(*args: Any, **kwargs: Any) -> None:
-        raise AssertionError("cache lookup must not access the network")
+    def unexpected_request(*_args: object, **_kwargs: object) -> None:
+        msg = "cache lookup must not access the network"
+        raise AssertionError(msg)
 
     monkeypatch.setattr("soccer_sources.logos.urlopen", unexpected_request)
 
@@ -87,7 +98,9 @@ def test_load_team_logos_is_cache_only(tmp_path: Path, monkeypatch: Any) -> None
     assert result == {"Bayern München": logo}
 
 
-def test_fetch_team_logos_downloads_known_alias_and_reports_unmatched(tmp_path: Path, monkeypatch: Any) -> None:
+def test_fetch_team_logos_downloads_known_alias_and_reports_unmatched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     directory = "Germany - Bundesliga"
     files = [
         {
@@ -106,7 +119,7 @@ def test_fetch_team_logos_downloads_known_alias_and_reports_unmatched(tmp_path: 
         def __init__(self, body: bytes) -> None:
             self.body = body
 
-        def __enter__(self) -> Response:
+        def __enter__(self) -> Self:
             return self
 
         def __exit__(self, *_: object) -> None:
@@ -115,14 +128,16 @@ def test_fetch_team_logos_downloads_known_alias_and_reports_unmatched(tmp_path: 
         def read(self) -> bytes:
             return self.body
 
-    def fake_urlopen(request: Any, timeout: float) -> Response:
+    def fake_urlopen(request: Request, timeout: float) -> Response:
+        assert timeout == 30
         url = request.full_url
         calls.append(url)
         if url.endswith(directory.replace(" ", "%20")):
             return Response(json.dumps(files).encode())
         if url.endswith("Bayern%20Munich.png"):
             return Response(b"bayern png")
-        raise AssertionError(f"Unexpected URL: {url}")
+        msg = f"Unexpected URL: {url}"
+        raise AssertionError(msg)
 
     monkeypatch.setattr("soccer_sources.logos.urlopen", fake_urlopen)
 
@@ -139,7 +154,7 @@ def test_fetch_team_logos_downloads_known_alias_and_reports_unmatched(tmp_path: 
     assert (tmp_path / "logos" / "bundesliga" / "2026" / "teams.json").exists()
 
 
-def test_fetch_team_logos_uses_cached_mapping_without_refresh(tmp_path: Path, monkeypatch: Any) -> None:
+def test_fetch_team_logos_uses_cached_mapping_without_refresh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     logo_dir = tmp_path / "logos" / "bundesliga" / "2026"
     logo_dir.mkdir(parents=True)
     logo = logo_dir / "Bayern Munich.png"
@@ -155,7 +170,7 @@ def test_fetch_team_logos_uses_cached_mapping_without_refresh(tmp_path: Path, mo
     assert result == {"Bayern München": logo}
 
 
-def test_logos_cli_fetches_selected_league_and_season(monkeypatch: Any) -> None:
+def test_logos_cli_fetches_selected_league_and_season(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, int, bool]] = []
 
     def fake_fetch(league: str, season: int, *, refresh: bool) -> dict[str, Path]:

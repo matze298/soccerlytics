@@ -1,7 +1,7 @@
 """Test plot builders with local Polars inputs."""
 
 import base64
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 from soccer_visualization.xg import (
@@ -13,6 +13,9 @@ from soccer_visualization.xg import (
     shot_map,
     team_goals_vs_xg,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_team_xg_figure_contains_regression_and_r_squared_without_one_to_one_line() -> None:

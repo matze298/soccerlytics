@@ -3,7 +3,7 @@ name = "soccer-sources"
 version = "0.1.0"
 description = "Soccer data source adapters and normalized tables"
 requires-python = ">=3.14,<3.15"
-dependencies = ["polars>=2.0,<3", "soccerdata>=1.9.1,<2"]
+dependencies = ["polars>=2.0.0", "soccerdata>=1.9.1"]
 
 [project.scripts]
 soccer-data = "soccer_sources.cli:app"

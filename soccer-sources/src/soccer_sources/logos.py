@@ -2,8 +2,8 @@
 
 import json
 import unicodedata
-from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -11,7 +11,11 @@ from urllib.request import Request, urlopen
 from soccer_sources.cache import DEFAULT_CACHE_DIR
 from soccer_sources.leagues import League, get_league
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
 _API_BASE = "https://api.github.com/repos/luukhopman/football-logos/contents"
+_CURRENT_LOGO_SEASON = 2026
 _LEAGUE_FOLDERS = {
     "bundesliga": "Germany - Bundesliga",
     "premier-league": "England - Premier League",
@@ -116,7 +120,11 @@ _ALIASES_BY_NORMALIZED = {
 
 
 def normalize_team_name(name: str) -> str:
-    """Normalize common accents and explicit provider/catalog aliases."""
+    """Normalize common accents and explicit provider/catalog aliases.
+
+    Returns:
+        A case-folded name suitable for matching provider names to catalog entries.
+    """
     normalized = " ".join(unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().casefold().split())
     target = _ALIASES_BY_NORMALIZED.get(normalized, name)
     return " ".join(unicodedata.normalize("NFKD", target).encode("ascii", "ignore").decode().casefold().split())
@@ -159,7 +167,11 @@ def load_team_logos(
     team_names: Iterable[str] | None = None,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> dict[str, Path]:
-    """Return cached crest paths only; this function never accesses the network."""
+    """Return cached crest paths only; this function never accesses the network.
+
+    Returns:
+        Paths for requested team crests that exist in the local cache.
+    """
     selected = get_league(league)
     return _manifest_paths(_cache_directory(selected, season, Path(cache_dir)), team_names)
 
@@ -168,23 +180,29 @@ def _catalog_directory(league: League, season: int) -> str:
     try:
         league_folder = _LEAGUE_FOLDERS[league.code]
     except KeyError as error:
-        raise ValueError(f"No crest catalog mapping exists for {league.code!r}") from error
-    base = "logos" if season == 2026 else f"history/{season}-{str(season + 1)[-2:]}"
+        msg = f"No crest catalog mapping exists for {league.code!r}"
+        raise ValueError(msg) from error
+    base = "logos" if season == _CURRENT_LOGO_SEASON else f"history/{season}-{str(season + 1)[-2:]}"
     return f"{base}/{league_folder}"
 
 
 def _request_bytes(url: str) -> bytes:
     parts = urlsplit(url)
+    if parts.scheme != "https" or parts.hostname not in {"api.github.com", "raw.githubusercontent.com"}:
+        msg = "Crest catalog requests must use an approved HTTPS GitHub host"
+        raise ValueError(msg)
     url = urlunsplit((parts.scheme, parts.netloc, quote(parts.path, safe="/%"), parts.query, parts.fragment))
-    request = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "soccerlytics"})
+    request = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "soccerlytics"})  # ruff: ignore[suspicious-url-open-usage] - URL host and scheme are validated above.
     try:
-        with urlopen(request, timeout=30) as response:
+        with urlopen(request, timeout=30) as response:  # ruff: ignore[suspicious-url-open-usage] - URL host and scheme are validated above.
             body = response.read()
             if not isinstance(body, bytes):
-                raise TypeError("The logo catalog returned non-byte content")
+                msg = "The logo catalog returned non-byte content"
+                raise TypeError(msg)
             return body
     except (HTTPError, URLError, TimeoutError) as error:
-        raise RuntimeError(f"Could not retrieve crest catalog resource {url}: {error}") from error
+        msg = f"Could not retrieve crest catalog resource {url}: {error}"
+        raise RuntimeError(msg) from error
 
 
 def fetch_team_logos(
@@ -195,7 +213,11 @@ def fetch_team_logos(
     refresh: bool = False,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> dict[str, Path]:
-    """Fetch requested crests from the public catalog into the local cache."""
+    """Fetch requested crests from the public catalog into the local cache.
+
+    Returns:
+        Paths for requested team crests that were found or downloaded.
+    """
     selected = get_league(league)
     directory = _cache_directory(selected, season, Path(cache_dir))
     requested = list(team_names) if team_names is not None else None

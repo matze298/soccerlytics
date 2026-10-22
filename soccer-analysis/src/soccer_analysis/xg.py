@@ -4,11 +4,19 @@ import polars as pl
 
 
 def team_xg_summary(team_match_stats: pl.DataFrame) -> pl.DataFrame:
-    """Aggregate team goals and expected goals while preserving missing xG."""
+    """Aggregate team goals and expected goals while preserving missing xG.
+
+    Returns:
+        One row per team with summed goals, xG, and their difference.
+
+    Raises:
+        ValueError: If required columns are missing.
+    """
     required = {"team", "goals", "xg"}
     missing = required.difference(team_match_stats.columns)
     if missing:
-        raise ValueError(f"Team match statistics are missing columns: {', '.join(sorted(missing))}")
+        msg = f"Team match statistics are missing columns: {', '.join(sorted(missing))}"
+        raise ValueError(msg)
     return (
         team_match_stats.group_by("team")
         .agg(
@@ -21,11 +29,19 @@ def team_xg_summary(team_match_stats: pl.DataFrame) -> pl.DataFrame:
 
 
 def player_goal_differences(player_stats: pl.DataFrame) -> pl.DataFrame:
-    """Return player goals minus xG, ordered by xG with missing values last."""
+    """Return player goals minus xG, ordered by xG with missing values last.
+
+    Returns:
+        Player, team, goals, xG, and goal-difference columns.
+
+    Raises:
+        ValueError: If required columns are missing.
+    """
     required = {"player", "team", "goals", "xg"}
     missing = required.difference(player_stats.columns)
     if missing:
-        raise ValueError(f"Player statistics are missing columns: {', '.join(sorted(missing))}")
+        msg = f"Player statistics are missing columns: {', '.join(sorted(missing))}"
+        raise ValueError(msg)
     return (
         player_stats.select("player", "team", "goals", "xg")
         .with_columns((pl.col("goals") - pl.col("xg")).alias("goals_minus_xg"))
@@ -34,14 +50,26 @@ def player_goal_differences(player_stats: pl.DataFrame) -> pl.DataFrame:
 
 
 def top_xg_scorers(player_stats: pl.DataFrame, limit: int = 10) -> pl.DataFrame:
-    """Return players with the highest known xG, ordered from highest to lowest."""
+    """Return players with the highest known xG, ordered from highest to lowest.
+
+    Raises:
+        ValueError: If ``limit`` is less than one or required player columns are missing.
+    """
     if limit < 1:
-        raise ValueError("limit must be greater than zero")
+        msg = "limit must be greater than zero"
+        raise ValueError(msg)
     return player_goal_differences(player_stats).drop_nulls("xg").head(limit)
 
 
 def multi_league_team_xg_summary(team_match_stats: pl.DataFrame, player_season_stats: pl.DataFrame) -> pl.DataFrame:
-    """Aggregate team goals and xG per league, preferring team-match rows when available."""
+    """Aggregate team goals and xG per league, preferring team-match rows when available.
+
+    Returns:
+        One row per league and team, including the source used for its totals.
+
+    Raises:
+        ValueError: If a non-empty input is missing required columns.
+    """
     schema = pl.Schema(
         {
             "league": pl.String,
@@ -56,7 +84,8 @@ def multi_league_team_xg_summary(team_match_stats: pl.DataFrame, player_season_s
     for name, frame in (("team-match", team_match_stats), ("player-season", player_season_stats)):
         missing = required.difference(frame.columns)
         if frame.height and missing:
-            raise ValueError(f"{name} statistics are missing columns: {', '.join(sorted(missing))}")
+            msg = f"{name} statistics are missing columns: {', '.join(sorted(missing))}"
+            raise ValueError(msg)
     if team_match_stats.is_empty() and player_season_stats.is_empty():
         return pl.DataFrame(schema=schema)
 
@@ -105,7 +134,14 @@ def multi_league_team_xg_summary(team_match_stats: pl.DataFrame, player_season_s
 
 
 def team_xg_for_against_per90(team_match_stats: pl.DataFrame) -> pl.DataFrame:
-    """Aggregate team-match xG and xGA into per-90 rates and global quadrants."""
+    """Aggregate team-match xG and xGA into per-90 rates and global quadrants.
+
+    Returns:
+        One row per team with per-90 rates and its quadrant classification.
+
+    Raises:
+        ValueError: If required columns are missing.
+    """
     schema = pl.Schema(
         {
             "league": pl.String,
@@ -122,7 +158,8 @@ def team_xg_for_against_per90(team_match_stats: pl.DataFrame) -> pl.DataFrame:
     required = {"league", "team", "xg", "xga"}
     missing = required.difference(team_match_stats.columns)
     if missing:
-        raise ValueError(f"Team match statistics are missing columns: {', '.join(sorted(missing))}")
+        msg = f"Team match statistics are missing columns: {', '.join(sorted(missing))}"
+        raise ValueError(msg)
 
     summary = (
         team_match_stats.select("league", "team", "xg", "xga")
@@ -162,7 +199,14 @@ def team_xg_for_against_per90(team_match_stats: pl.DataFrame) -> pl.DataFrame:
 
 
 def league_xg_for_against_summary(team_summary: pl.DataFrame) -> pl.DataFrame:
-    """Summarize each league's team-level xG-for/against mean and population spread."""
+    """Summarize each league's team-level xG-for/against mean and population spread.
+
+    Returns:
+        One row per league with means and population standard deviations.
+
+    Raises:
+        ValueError: If a non-empty input is missing required columns.
+    """
     schema = pl.Schema(
         {
             "league": pl.String,
@@ -179,7 +223,8 @@ def league_xg_for_against_summary(team_summary: pl.DataFrame) -> pl.DataFrame:
     required = {"league", "team", "xg_for_per90", "xg_against_per90"}
     missing = required.difference(team_summary.columns)
     if missing:
-        raise ValueError(f"Team xG summary is missing columns: {', '.join(sorted(missing))}")
+        msg = f"Team xG summary is missing columns: {', '.join(sorted(missing))}"
+        raise ValueError(msg)
 
     return (
         team_summary.select("league", "team", "xg_for_per90", "xg_against_per90")

@@ -3,6 +3,7 @@
 import marimo
 
 app = marimo.App(width="full")
+_SEASON_START_MONTH = 7
 
 
 @app.cell
@@ -103,7 +104,7 @@ def _(cache_dir, league_codes, mo):
         if _path.is_dir() and _path.name.isdigit()
     }
     _today = datetime.now(UTC).date()
-    _current_season = _today.year if _today.month >= 7 else _today.year - 1
+    _current_season = _today.year if _today.month >= _SEASON_START_MONTH else _today.year - 1
     available_seasons = sorted(
         {
             *range(2014, _current_season + 1),
@@ -155,7 +156,7 @@ def _(
             refresh=_refresh,
             cache_dir=str(cache_dir),
         )
-    except Exception as _error:
+    except Exception as _error:  # ruff: ignore[blind-except] - Keep independent tables available after provider failures.
         openligadb_matches = pl.DataFrame()
         unavailable_tables.append(f"OpenLigaDB matches: {_error}")
 
@@ -179,7 +180,7 @@ def _(
                     refresh=_refresh,
                     cache_dir=cache_dir,
                 )
-            except Exception as _error:
+            except Exception as _error:  # ruff: ignore[blind-except] - Each league/table loads independently.
                 _frame = pl.DataFrame(schema=_schema)
                 unavailable_tables.append(f"{_league_code}/{_label}: {_error}")
             _league_frames.append(_frame)
@@ -211,7 +212,7 @@ def _(
                 )
                 if _refresh:
                     refresh_messages.append(f"{_league_code} crests: refreshed {len(_logos)}/{len(_team_names)}.")
-            except Exception as _error:
+            except Exception as _error:  # ruff: ignore[blind-except] - Missing crests should not block analysis.
                 unavailable_assets.append(f"{_league_code} crests: {_error}")
 
     _all_teams = pl.concat(team_frames, how="diagonal_relaxed") if team_frames else pl.DataFrame(schema=team_schema)
@@ -249,7 +250,6 @@ def _(
 @app.cell
 def _(mo):
     mo.md("## Big Five analysis")
-    return
 
 
 @app.cell
@@ -269,7 +269,6 @@ def _(all_player_stats, big5_player_selector, league_labels, mo, multi_league_pl
         else mo.md("Player goals-versus-xG plot will appear after data is cached for selected leagues.")
     )
     mo.hstack([big5_player_selector, big5_player_figure], widths=[1, 4], align="center")
-    return
 
 
 @app.cell
@@ -299,7 +298,6 @@ def _(
         else mo.md("Team goals-versus-xG plot will appear after data is cached for selected leagues.")
     )
     mo.hstack([big5_team_selector, big5_team_figure], widths=[1, 4], align="center")
-    return
 
 
 @app.cell
@@ -329,7 +327,6 @@ def _(
         else mo.md("No team-match xG-for/against rows are cached for the selected leagues.")
     )
     mo.hstack([big5_quadrant_selector, big5_quadrant_figure], widths=[1, 4], align="center")
-    return
 
 
 @app.cell
@@ -359,7 +356,6 @@ def _(
         else mo.md("League means and spreads will appear after team xG-for/against rows are cached.")
     )
     mo.hstack([big5_distribution_selector, big5_distribution_figure], widths=[1, 4], align="center")
-    return
 
 
 @app.cell
@@ -383,7 +379,6 @@ def _(big5_scorer_selector, all_player_stats, league_labels, mo, pl, top_xg_scor
         )
         _table = mo.ui.table(_scorers)
     mo.hstack([big5_scorer_selector, mo.vstack([mo.md("### Top xG scorers (Understat)"), _table])], widths=[1, 4])
-    return
 
 
 @app.cell
@@ -409,7 +404,6 @@ def _(cache_dir, league_codes, load_team_logos, pl, season_selector, team_summar
 @app.cell
 def _(mo):
     mo.md("## Bundesliga analysis")
-    return
 
 
 @app.cell
@@ -430,7 +424,6 @@ def _(bundesliga_player_stats, season_selector, mo, multi_league_player_goals_vs
         else mo.md("Player goals-versus-xG plot will appear after Bundesliga data is cached for this season.")
     )
     bundesliga_player_figure
-    return
 
 
 @app.cell
@@ -448,7 +441,6 @@ def _(
         else mo.md("Team goals-versus-xG plot will appear after Bundesliga data is cached for this season.")
     )
     bundesliga_team_figure
-    return
 
 
 @app.cell
@@ -466,7 +458,6 @@ def _(
         else mo.md("No team-match xG-for/against rows are cached for this Bundesliga season.")
     )
     bundesliga_quadrant_figure
-    return
 
 
 @app.cell
@@ -483,7 +474,6 @@ def _(
         else mo.md("Bundesliga mean and spread will appear after team xG-for/against rows are cached.")
     )
     bundesliga_distribution_figure
-    return
 
 
 @app.cell
@@ -499,7 +489,6 @@ def _(bundesliga_player_stats, mo, pl, top_xg_scorers):
         )
         _table = mo.ui.table(_scorers)
     mo.vstack([mo.md("### Top Bundesliga xG scorers (Understat)"), _table])
-    return
 
 
 @app.cell
@@ -524,7 +513,6 @@ def _(openligadb_matches, mo, season_selector):
             f"No OpenLigaDB matches are available for {_season}/{_season + 1}; see the provider status above."
         )
     _match_output
-    return
 
 
 @app.cell
@@ -540,7 +528,6 @@ def _(season_selector, cache_dir, mo, pl, shot_map):
             "notes and ingestion command in `docs/data-sources.md`."
         )
     _shot_output
-    return
 
 
 if __name__ == "__main__":

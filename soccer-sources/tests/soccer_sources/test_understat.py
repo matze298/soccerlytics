@@ -1,7 +1,7 @@
 """Test Understat normalization with local records."""
 
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
@@ -12,6 +12,9 @@ from soccer_sources.understat import (
     normalize_player_season_stats,
     normalize_team_match_stats,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_normalize_team_stats_preserves_xg_and_unmapped_metrics() -> None:
@@ -72,9 +75,9 @@ def test_normalize_player_stats_keeps_missing_metrics_null() -> None:
     assert frame.row(0, named=True)["xa"] is None
 
 
-def test_understat_requires_explicit_access_acknowledgement() -> None:
+def test_understat_requires_explicit_access_acknowledgement(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="opt-in"):
-        load_team_match_stats()
+        load_team_match_stats(cache_dir=tmp_path)
 
 
 def test_understat_reads_cached_table_without_access_acknowledgement(tmp_path: Path) -> None:
@@ -106,7 +109,8 @@ def test_team_match_loader_rebuilds_legacy_cache_with_xga(tmp_path: Path, monkey
     )
 
     class CachedReader:
-        def read_team_match_stats(self, *, force_cache: bool) -> list[dict[str, object]]:
+        @staticmethod
+        def read_team_match_stats(*, force_cache: bool) -> list[dict[str, object]]:
             assert force_cache
             return [
                 {
@@ -120,7 +124,10 @@ def test_team_match_loader_rebuilds_legacy_cache_with_xga(tmp_path: Path, monkey
                 }
             ]
 
-    monkeypatch.setattr("soccer_sources.understat._reader", lambda *_args: (CachedReader(), "1.9.1"))
+    monkeypatch.setattr(
+        "soccer_sources.understat._reader",
+        lambda *_args, **_kwargs: (CachedReader(), "1.9.1"),
+    )
 
     result = load_team_match_stats("bundesliga", 2025, allow_scraping=True, cache_dir=tmp_path)
 

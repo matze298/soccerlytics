@@ -14,24 +14,34 @@ from soccer_sources.models import MATCH_SCHEMA, PLAYER_SEASON_STATS_SCHEMA, SHOT
 _BASE_URL = "https://understat.com/"
 
 
-def _plain_column(name: Any) -> str:
+def _plain_column(name: object) -> str:
     parts = name if isinstance(name, tuple) else (name,)
     return "_".join(str(part).strip().lower().replace(" ", "_") for part in parts if str(part).strip())
 
 
-def _records(frame: Any) -> list[dict[str, Any]]:
-    """Flatten pandas indexes/columns at the adapter boundary."""
-    if hasattr(frame, "reset_index"):
-        frame = frame.reset_index()
-    if hasattr(frame, "to_dict"):
-        values = frame.to_dict(orient="records")
+def _records(frame: object) -> list[dict[str, Any]]:
+    """Flatten pandas indexes/columns at the adapter boundary.
+
+    Returns:
+        Rows with normalized string column names.
+
+    Raises:
+        TypeError: If the provider table cannot be converted to records.
+    """
+    reset_index = getattr(frame, "reset_index", None)
+    if callable(reset_index):
+        frame = reset_index()
+    to_dict = getattr(frame, "to_dict", None)
+    if callable(to_dict):
+        values = to_dict(orient="records")
         return [{_plain_column(key): value for key, value in row.items()} for row in values]
     if isinstance(frame, list) and all(isinstance(row, Mapping) for row in frame):
         return [{_plain_column(key): value for key, value in row.items()} for row in frame]
-    raise TypeError("soccerdata returned an unsupported table type")
+    msg = "soccerdata returned an unsupported table type"
+    raise TypeError(msg)
 
 
-def _value(row: Mapping[str, Any], *names: str) -> Any:
+def _value(row: Mapping[str, Any], *names: str) -> Any:  # ruff: ignore[any-type] - Provider cells retain pandas-native value types.
     return next((row[name] for name in names if name in row and row[name] is not None), None)
 
 
@@ -44,9 +54,13 @@ def _to_frame(records: list[dict[str, Any]], schema: pl.Schema) -> pl.DataFrame:
 
 
 def normalize_schedule(
-    frame: Any, league: League, season: int, retrieved_at: datetime, source_version: str = "soccerdata"
+    frame: object, league: League, season: int, retrieved_at: datetime, source_version: str = "soccerdata"
 ) -> pl.DataFrame:
-    """Normalize Understat's schedule while retaining its match identifiers."""
+    """Normalize Understat's schedule while retaining its match identifiers.
+
+    Returns:
+        A Polars table with the shared match schema.
+    """
     rows = []
     for row in _records(frame):
         game_id = _value(row, "game_id", "match_id", "id", "game")
@@ -54,7 +68,7 @@ def normalize_schedule(
             continue
         kickoff = _value(row, "date", "datetime", "kickoff", "kickoff_utc")
         if isinstance(kickoff, str):
-            kickoff = datetime.fromisoformat(kickoff.replace("Z", "+00:00"))
+            kickoff = datetime.fromisoformat(kickoff)
         if isinstance(kickoff, datetime) and kickoff.tzinfo is None:
             kickoff = kickoff.replace(tzinfo=UTC)
         home_goals = _value(row, "home_goals", "goals_home")
@@ -82,9 +96,13 @@ def normalize_schedule(
 
 
 def normalize_team_match_stats(
-    frame: Any, league: League, season: int, retrieved_at: datetime, source_version: str = "soccerdata"
+    frame: object, league: League, season: int, retrieved_at: datetime, source_version: str = "soccerdata"
 ) -> pl.DataFrame:
-    """Normalize Understat wide match rows or team rows into one row per team-match."""
+    """Normalize Understat wide match rows or team rows into one row per team-match.
+
+    Returns:
+        A Polars table with the shared team-match statistics schema.
+    """
     rows = []
     for row in _records(frame):
         team = _value(row, "team", "team_name", "team_team")
@@ -145,9 +163,13 @@ def normalize_team_match_stats(
 
 
 def normalize_player_season_stats(
-    frame: Any, league: League, season: int, retrieved_at: datetime, source_version: str = "soccerdata"
+    frame: object, league: League, season: int, retrieved_at: datetime, source_version: str = "soccerdata"
 ) -> pl.DataFrame:
-    """Normalize Understat player season rows and retain extra source metrics."""
+    """Normalize Understat player season rows and retain extra source metrics.
+
+    Returns:
+        A Polars table with the shared player-season statistics schema.
+    """
     rows = []
     for row in _records(frame):
         player = _value(row, "player", "player_name", "name")
@@ -178,9 +200,13 @@ def normalize_player_season_stats(
 
 
 def normalize_shots(
-    frame: Any, league: League, season: int, retrieved_at: datetime, source_version: str = "soccerdata"
+    frame: object, league: League, season: int, retrieved_at: datetime, source_version: str = "soccerdata"
 ) -> pl.DataFrame:
-    """Normalize Understat shot events with their provider-native coordinates."""
+    """Normalize Understat shot events with their provider-native coordinates.
+
+    Returns:
+        A Polars table with the shared shot-event schema.
+    """
     rows = []
     for row in _records(frame):
         shot_id = _value(row, "shot_id", "id")
@@ -207,9 +233,9 @@ def normalize_shots(
     return _to_frame(rows, SHOTS_SCHEMA)
 
 
-def _reader(league: League, season: int, refresh: bool, cache_dir: Path) -> tuple[Any, str]:
+def _reader(league: League, season: int, *, refresh: bool, cache_dir: Path) -> tuple[Any, str]:
     # Keep this import inside the opted-in cache-miss path: soccerdata configures file logging at import time.
-    import soccerdata
+    import soccerdata  # ruff: ignore[import-outside-top-level] - Delay provider setup until an opted-in cache miss.
 
     reader = soccerdata.Understat(
         leagues=league.soccerdata_code,
@@ -220,7 +246,7 @@ def _reader(league: League, season: int, refresh: bool, cache_dir: Path) -> tupl
     return reader, soccerdata.__version__
 
 
-def _load_table(
+def _load_table(  # ruff: ignore[too-many-arguments] - Loader options preserve cache and provider behaviors per entity.
     entity: str,
     method: str,
     normalize: Callable[[object, League, int, datetime, str], pl.DataFrame],
@@ -243,7 +269,7 @@ def _load_table(
             "No cached Understat table exists; site access is opt-in. Review docs/data-sources.md before enabling it."
         )
         raise RuntimeError(message)
-    reader, source_version = _reader(selected, season, refresh, cache_dir)
+    reader, source_version = _reader(selected, season, refresh=refresh, cache_dir=cache_dir)
     method_reader = getattr(reader, method)
     raw = method_reader(force_cache=True) if force_provider_cache else method_reader()
     frame = normalize(raw, selected, season, datetime.now(UTC), source_version)
@@ -259,7 +285,11 @@ def load_matches(
     refresh: bool = False,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> pl.DataFrame:
-    """Load and cache Understat schedule rows after explicit access acknowledgement."""
+    """Load and cache Understat schedule rows after explicit access acknowledgement.
+
+    Returns:
+        A Polars table with the shared match schema.
+    """
     return _load_table(
         "matches",
         "read_schedule",
@@ -280,7 +310,11 @@ def load_team_match_stats(
     refresh: bool = False,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> pl.DataFrame:
-    """Load team match metrics, including Understat xG, into Polars."""
+    """Load team match metrics, including Understat xG, into Polars.
+
+    Returns:
+        A Polars table with team-match statistics.
+    """
     return _load_table(
         "team_match_stats",
         "read_team_match_stats",
@@ -303,7 +337,11 @@ def load_player_season_stats(
     refresh: bool = False,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> pl.DataFrame:
-    """Load player season xG and available attacking metrics into Polars."""
+    """Load player season xG and available attacking metrics into Polars.
+
+    Returns:
+        A Polars table with player-season statistics.
+    """
     return _load_table(
         "player_season_stats",
         "read_player_season_stats",
@@ -324,7 +362,11 @@ def load_shots(
     refresh: bool = False,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> pl.DataFrame:
-    """Load Understat shot events if permitted and available."""
+    """Load Understat shot events if permitted and available.
+
+    Returns:
+        A Polars table with provider-native shot-event coordinates.
+    """
     return _load_table(
         "shots",
         "read_shot_events",

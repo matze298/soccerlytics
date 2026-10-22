@@ -5,21 +5,21 @@ description = "Workspace for soccer data analysis and visualizations"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
-    "marimo>=0.19,<1",
-    "polars>=2.0,<3",
+    "marimo>=0.19",
+    "polars>=2.0.0",
     "soccer-analysis",
     "soccer-sources",
     "soccer-visualization",
-    "typer>=0.20,<1",
+    "typer>=0.20",
 ]
 
 [dependency-groups]
 dev = [
-    "import-linter>=2.15,<3",
-    "prek>=0.5.5,<1",
-    "pytest>=9.1,<10",
-    "ruff>=0.17,<1",
-    "ty>=0.0.86,<1",
+    "import-linter>=2.15",
+    "prek>=0.5.5",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+    "ty>=0.0.86",
 ]
 [tool.uv]
 package = false
@@ -46,13 +46,40 @@ target-version = "py314"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
-ignore = ["COM812"]
+select = ["ALL"]
+preview = true
+ignore = [
+    "missing-trailing-comma", # The formatter owns trailing commas.
+    "missing-copyright-notice", # This repository has no per-file copyright notice policy.
+]
 
 [tool.ruff.lint.per-file-ignores]
-"scripts/*.py" = ["E402", "F401", "INP001", "B018"]
-"soccer-*/tests/**/*.py" = ["S101", "INP001"]
-
+# Marimo cells infer signatures and dependencies, render final expressions, and use local imports.
+"scripts/*.py" = [
+    "missing-type-function-argument",
+    "missing-return-type-private-function",
+    "useless-expression",
+    "implicit-namespace-package",
+    "invalid-argument-name",
+    "import-outside-top-level",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "used-dummy-variable",
+    "complex-structure",
+    "too-many-branches",
+    "too-many-statements",
+    "too-many-locals",
+    "complexity",
+    "too-many-return-statements",
+]
+# Test names and expected numeric values make behavior clear without separate docstrings or constants.
+"**/tests/**/*.py" = [
+    "assert",
+    "implicit-namespace-package",
+    "undocumented-public-function",
+    "magic-value-comparison",
+    "float-equality-comparison",
+]
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 

@@ -15,7 +15,8 @@ app = typer.Typer(help="Download soccer source tables into the local Parquet cac
 def ingest_openligadb(
     league: str = typer.Option("bundesliga", help="League code, for example bundesliga."),
     season: int = typer.Option(2025, help="Season start year."),
-    refresh: bool = typer.Option(False, help="Ignore the normalized cache and fetch again."),
+    *,
+    refresh: bool = typer.Option(default=False, help="Ignore the normalized cache and fetch again."),
 ) -> None:
     """Fetch public fixtures and results from OpenLigaDB."""
     matches = load_matches(league, season, refresh=refresh)
@@ -26,10 +27,9 @@ def ingest_openligadb(
 def ingest_understat(
     league: str = typer.Option("bundesliga", help="soccerdata-compatible league code."),
     season: int = typer.Option(2025, help="Season start year."),
-    allow_scraping: bool = typer.Option(
-        False, "--allow-scraping", help="Acknowledge the access notes in docs/data-sources.md."
-    ),
-    refresh: bool = typer.Option(False, help="Ignore both normalized and provider caches."),
+    *,
+    allow_scraping: bool = typer.Option(default=False, help="Acknowledge the access notes in docs/data-sources.md."),
+    refresh: bool = typer.Option(default=False, help="Ignore both normalized and provider caches."),
 ) -> None:
     """Fetch Understat team and player metrics after the explicit access opt-in."""
     cache_dir = Path(".cache/soccer")
@@ -44,7 +44,8 @@ def ingest_understat(
 def ingest_logos(
     league: str = typer.Option("bundesliga", help="Supported league code."),
     season: int = typer.Option(2026, help="Season start year."),
-    refresh: bool = typer.Option(False, help="Fetch logos again even when the local cache has them."),
+    *,
+    refresh: bool = typer.Option(default=False, help="Fetch logos again even when the local cache has them."),
 ) -> None:
     """Download team crests from the football-logos catalog into the local cache."""
     logos = fetch_team_logos(league, season, refresh=refresh)

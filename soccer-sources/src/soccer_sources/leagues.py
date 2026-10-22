@@ -12,7 +12,8 @@ class League:
     openligadb_code: str
     soccerdata_code: str
 
-    def season_label(self, season: int) -> str:
+    @staticmethod
+    def season_label(season: int) -> str:
         """Return a season label from its start year."""
         return f"{season}/{season + 1}"
 
@@ -27,11 +28,19 @@ _LEAGUES = {
 
 
 def get_league(league: str | League) -> League:
-    """Resolve a supported league code or pass through a League value."""
+    """Resolve a supported league code or pass through a League value.
+
+    Returns:
+        The selected league metadata.
+
+    Raises:
+        ValueError: If the code is not supported.
+    """
     if isinstance(league, League):
         return league
     try:
         return _LEAGUES[league.lower()]
     except KeyError as error:
         options = ", ".join(sorted(_LEAGUES))
-        raise ValueError(f"Unsupported league {league!r}; choose from: {options}") from error
+        msg = f"Unsupported league {league!r}; choose from: {options}"
+        raise ValueError(msg) from error

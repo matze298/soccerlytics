@@ -1,13 +1,16 @@
 """Test OpenLigaDB response normalization without network access."""
 
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
-from soccer_sources.cache import cache_file, write_parquet
+from soccer_sources.cache import cache_file, write_json, write_parquet
 from soccer_sources.leagues import get_league
 from soccer_sources.openligadb import load_matches, parse_matches
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_parse_matches_normalizes_ids_scores_and_utc_timestamps() -> None:
@@ -93,3 +96,11 @@ def test_load_matches_reuses_parquet_cache(tmp_path: Path) -> None:
     result = load_matches(cache_dir=str(tmp_path))
 
     assert result.is_empty()
+
+
+def test_load_matches_rejects_cached_non_list_response(tmp_path: Path) -> None:
+    raw_path = cache_file("openligadb", "matches", "bundesliga", 2025, suffix="json", cache_dir=tmp_path)
+    write_json({"error": "not a match list"}, raw_path)
+
+    with pytest.raises(ValueError, match="not a list of match records"):
+        load_matches(cache_dir=str(tmp_path))

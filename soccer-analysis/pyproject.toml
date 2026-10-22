@@ -3,7 +3,7 @@ name = "soccer-analysis"
 version = "0.1.0"
 description = "Reusable Polars soccer analysis"
 requires-python = ">=3.14,<3.15"
-dependencies = ["polars>=2.0,<3"]
+dependencies = ["polars>=2.0.0"]
 
 [build-system]
 requires = ["uv_build>=0.10,<0.12"]
