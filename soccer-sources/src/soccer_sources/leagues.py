@@ -27,6 +27,11 @@ _LEAGUES = {
 }
 
 
+def get_leagues() -> tuple[League, ...]:
+    """Return the supported league definitions in display order."""
+    return tuple(_LEAGUES.values())
+
+
 def get_league(league: str | League) -> League:
     """Resolve a supported league code or pass through a League value.
 

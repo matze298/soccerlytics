@@ -12,9 +12,9 @@ uv run soccer-data openligadb --league bundesliga --season 2026
 uv run marimo edit scripts/big5_xg.py
 ```
 
-The OpenLigaDB command downloads fixtures and results and stores normalized Parquet under `.cache/soccer/`. The notebook reads cached source data and omits xG charts until real Understat tables are available; it does not substitute example rows. Selecting a season loads cached data and fetches missing OpenLigaDB and Understat tables and team crests where available. Understat ingestion is opt-in because it reads a third-party website; read [data source notes](docs/data-sources.md) before using the selector to retrieve uncached seasons. **Refresh cached data from providers** bypasses local caches and refreshes team crests.
+The OpenLigaDB command downloads fixtures and results and stores normalized Parquet under `.cache/soccer/`. The notebook reads cached source data and omits xG charts until real Understat tables are available; it does not substitute example rows. Selecting a season loads cached data and fetches missing OpenLigaDB and Understat tables plus every crest in the selected season catalog. Season values use the start year: `2025` means 2025/26. **Refresh cached data from providers** bypasses local caches.
 
-To retrieve 2026/27 Understat team and player xG after reviewing the access notes, run `uv run soccer-data understat --league bundesliga --season 2026 --allow-scraping`. Repeat with `premier-league`, `la-liga`, `serie-a`, and `ligue-1` for the Big Five chart. Add `--refresh` to bypass local caches.
+To retrieve 2026/27 Understat team and player xG, run `uv run soccer-data understat --league bundesliga --season 2026`. Repeat with `premier-league`, `la-liga`, `serie-a`, and `ligue-1` for the Big Five chart. Add `--refresh` to bypass local caches.
 
 The notebook starts with the Top Five league analysis and ends with a separate Bundesliga section. One global season selector controls both sections and offers Understat seasons from 2014/15 through the current season, regardless of which seasons are cached locally. A season with no local data shows empty charts until refreshed. Each Top Five plot and its scorer table has an independent league selector, defaulting to all five leagues. The xG plots use square 900×900 canvases with matching axis scales.
 

@@ -8,8 +8,6 @@ _SEASON_START_MONTH = 7
 
 @app.cell
 def _():
-    from pathlib import Path
-
     import marimo as mo
     import polars as pl
     from soccer_analysis.xg import (
@@ -19,9 +17,8 @@ def _():
         top_xg_scorers,
     )
     from soccer_sources.cache import DEFAULT_CACHE_DIR
-    from soccer_sources.logos import fetch_team_logos, load_team_logos
-    from soccer_sources.openligadb import load_matches as load_openligadb_matches
-    from soccer_sources.understat import load_player_season_stats, load_team_match_stats
+    from soccer_sources.leagues import get_leagues
+    from soccer_sources.season import load_season_data
     from soccer_visualization.xg import (
         multi_league_player_goals_vs_xg,
         multi_league_team_goals_vs_xg,
@@ -30,15 +27,9 @@ def _():
         shot_map,
     )
 
-    league_labels = {
-        "Bundesliga": "bundesliga",
-        "Premier League": "premier-league",
-        "La Liga": "la-liga",
-        "Serie A": "serie-a",
-        "Ligue 1": "ligue-1",
-    }
+    league_labels = {league.name: league.code for league in get_leagues()}
     league_codes = list(league_labels.values())
-    cache_dir = Path(DEFAULT_CACHE_DIR)
+    cache_dir = DEFAULT_CACHE_DIR
 
     def make_league_selector(label):
         return mo.ui.multiselect(
@@ -51,13 +42,9 @@ def _():
     mo.md("# Top Five Leagues and Bundesliga xG research")
     return (
         cache_dir,
-        fetch_team_logos,
         league_codes,
         league_labels,
-        load_team_logos,
-        load_openligadb_matches,
-        load_player_season_stats,
-        load_team_match_stats,
+        load_season_data,
         make_league_selector,
         mo,
         multi_league_player_goals_vs_xg,
@@ -80,11 +67,8 @@ def _(mo):
         [
             refresh_button,
             mo.md(
-                "Changing the season loads local caches and fetches missing OpenLigaDB and Understat tables and team "
-                "crests where available. Understat access is opt-in; selecting an uncached season authorizes that "
-                "retrieval. Use this button to force a refresh of the selected season's data and crests. Read "
-                "`docs/data-sources.md` before enabling "
-                "Understat access."
+                "Changing the season loads local caches and fetches missing source tables and the full season crest "
+                "catalogs. Use this button to force a refresh of the selected season's data and crests."
             ),
         ]
     )
@@ -132,11 +116,8 @@ def _(cache_dir, league_codes, mo):
 @app.cell
 def _(
     cache_dir,
-    fetch_team_logos,
     league_codes,
-    load_openligadb_matches,
-    load_player_season_stats,
-    load_team_match_stats,
+    load_season_data,
     mo,
     multi_league_team_xg_summary,
     pl,
@@ -145,82 +126,29 @@ def _(
     team_xg_for_against_per90,
 ):
     _season = season_selector.value
-    _refresh = bool(refresh_button.value)
-    refresh_messages = []
-    unavailable_tables = []
-    unavailable_assets = []
-    try:
-        openligadb_matches = load_openligadb_matches(
-            "bundesliga",
-            _season,
-            refresh=_refresh,
-            cache_dir=str(cache_dir),
-        )
-    except Exception as _error:  # ruff: ignore[blind-except] - Keep independent tables available after provider failures.
-        openligadb_matches = pl.DataFrame()
-        unavailable_tables.append(f"OpenLigaDB matches: {_error}")
-
-    team_frames = []
-    player_frames = []
-    missing_leagues = []
-    empty_team_stats = []
-    player_schema = {"league": pl.String, "team": pl.String, "player": pl.String, "goals": pl.Float64, "xg": pl.Float64}
-    team_schema = {"league": pl.String, "team": pl.String, "goals": pl.Float64, "xg": pl.Float64}
-    for _league_code in league_codes:
-        _league_frames = []
-        for _loader, _label, _schema in (
-            (load_team_match_stats, "team-match", team_schema),
-            (load_player_season_stats, "player-season", player_schema),
-        ):
-            try:
-                _frame = _loader(
-                    _league_code,
-                    _season,
-                    allow_scraping=True,
-                    refresh=_refresh,
-                    cache_dir=cache_dir,
-                )
-            except Exception as _error:  # ruff: ignore[blind-except] - Each league/table loads independently.
-                _frame = pl.DataFrame(schema=_schema)
-                unavailable_tables.append(f"{_league_code}/{_label}: {_error}")
-            _league_frames.append(_frame)
-            refresh_messages.append(f"{_league_code} {_label}: loaded {len(_frame)} rows.")
-        _teams, _players = _league_frames
-        team_frames.append(_teams if not _teams.is_empty() else pl.DataFrame(schema=team_schema))
-        player_frames.append(_players if not _players.is_empty() else pl.DataFrame(schema=player_schema))
-        if _teams.is_empty():
-            empty_team_stats.append(_league_code)
-        if _teams.is_empty() and _players.is_empty():
-            missing_leagues.append(_league_code)
-
-        _team_names = sorted(
-            {
-                str(_team)
-                for _frame in _league_frames
-                if "team" in _frame.columns
-                for _team in _frame.get_column("team").drop_nulls().to_list()
-            }
-        )
-        if _team_names:
-            try:
-                _logos = fetch_team_logos(
-                    _league_code,
-                    _season,
-                    team_names=_team_names,
-                    refresh=_refresh,
-                    cache_dir=cache_dir,
-                )
-                if _refresh:
-                    refresh_messages.append(f"{_league_code} crests: refreshed {len(_logos)}/{len(_team_names)}.")
-            except Exception as _error:  # ruff: ignore[blind-except] - Missing crests should not block analysis.
-                unavailable_assets.append(f"{_league_code} crests: {_error}")
-
-    _all_teams = pl.concat(team_frames, how="diagonal_relaxed") if team_frames else pl.DataFrame(schema=team_schema)
-    all_player_stats = (
-        pl.concat(player_frames, how="diagonal_relaxed") if player_frames else pl.DataFrame(schema=player_schema)
+    _data = load_season_data(
+        league_codes,
+        _season,
+        match_leagues=["bundesliga"],
+        refresh=bool(refresh_button.value),
+        cache_dir=cache_dir,
     )
-    team_summary = multi_league_team_xg_summary(_all_teams, all_player_stats)
-    team_xg_per90 = team_xg_for_against_per90(_all_teams)
+    all_player_stats = _data.player_season_stats
+    openligadb_matches = _data.matches
+    team_summary = multi_league_team_xg_summary(_data.team_match_stats, all_player_stats)
+    team_xg_per90 = team_xg_for_against_per90(_data.team_match_stats)
+    logos_by_league = _data.team_logos
+
+    empty_team_stats = [
+        _league for _league in league_codes if _data.team_match_stats.filter(pl.col("league") == _league).is_empty()
+    ]
+    available_player_leagues = set(all_player_stats.get_column("league").to_list())
+    available_team_leagues = set(team_summary.get_column("league").to_list())
+    missing_leagues = [
+        _league
+        for _league in league_codes
+        if _league not in available_player_leagues and _league not in available_team_leagues
+    ]
     fallback_leagues = (
         team_summary.filter(pl.col("provenance") == "player_season_fallback").get_column("league").unique().to_list()
         if not team_summary.is_empty()
@@ -237,14 +165,10 @@ def _(
         )
     if not _notes:
         _notes.append("Team totals use Understat team-match rows where available.")
-    if unavailable_tables:
-        _notes.append("Some provider tables could not be loaded: " + " ".join(unavailable_tables))
-    if unavailable_assets:
-        _notes.append("Some team crests could not be loaded: " + " ".join(unavailable_assets))
-    if refresh_messages and _refresh:
-        _notes.append("Refresh results: " + " ".join(refresh_messages))
+    if _data.errors:
+        _notes.append("Some source data could not be loaded: " + " ".join(_data.errors))
     mo.md(" ".join(_notes))
-    return all_player_stats, openligadb_matches, team_summary, team_xg_per90
+    return all_player_stats, logos_by_league, openligadb_matches, team_summary, team_xg_per90
 
 
 @app.cell
@@ -382,37 +306,24 @@ def _(big5_scorer_selector, all_player_stats, league_labels, mo, pl, top_xg_scor
 
 
 @app.cell
-def _(cache_dir, league_codes, load_team_logos, pl, season_selector, team_summary):
-    _season = season_selector.value
-    logos_by_league = {}
-    for _league_code in league_codes:
-        _teams = (
-            team_summary.filter(pl.col("league") == _league_code).get_column("team").drop_nulls().unique().to_list()
-            if not team_summary.is_empty()
-            else []
-        )
-        _league_logos = load_team_logos(
-            _league_code,
-            _season,
-            team_names=_teams,
-            cache_dir=cache_dir,
-        )
-        logos_by_league.update({(_league_code, _name): _path for _name, _path in _league_logos.items()})
-    return (logos_by_league,)
-
-
-@app.cell
 def _(mo):
     mo.md("## Bundesliga analysis")
 
 
 @app.cell
-def _(all_player_stats, league_xg_for_against_summary, pl, team_summary, team_xg_per90):
+def _(all_player_stats, league_xg_for_against_summary, logos_by_league, pl, team_summary, team_xg_per90):
     bundesliga_player_stats = all_player_stats.filter(pl.col("league") == "bundesliga")
     bundesliga_team_summary = team_summary.filter(pl.col("league") == "bundesliga")
     bundesliga_team_xg_per90 = team_xg_per90.filter(pl.col("league") == "bundesliga")
     bundesliga_xg_distribution = league_xg_for_against_summary(bundesliga_team_xg_per90)
-    return bundesliga_player_stats, bundesliga_team_summary, bundesliga_team_xg_per90, bundesliga_xg_distribution
+    bundesliga_logos = {team: path for (league, team), path in logos_by_league.items() if league == "bundesliga"}
+    return (
+        bundesliga_logos,
+        bundesliga_player_stats,
+        bundesliga_team_summary,
+        bundesliga_team_xg_per90,
+        bundesliga_xg_distribution,
+    )
 
 
 @app.cell
@@ -492,18 +403,6 @@ def _(bundesliga_player_stats, mo, pl, top_xg_scorers):
 
 
 @app.cell
-def _(season_selector, cache_dir, load_team_logos, bundesliga_team_summary):
-    _season = season_selector.value
-    _team_names = (
-        bundesliga_team_summary.get_column("team").drop_nulls().unique().to_list()
-        if not bundesliga_team_summary.is_empty()
-        else []
-    )
-    bundesliga_logos = load_team_logos("bundesliga", _season, team_names=_team_names, cache_dir=cache_dir)
-    return (bundesliga_logos,)
-
-
-@app.cell
 def _(openligadb_matches, mo, season_selector):
     _season = season_selector.value
     if not openligadb_matches.is_empty():
@@ -523,10 +422,7 @@ def _(season_selector, cache_dir, mo, pl, shot_map):
         _shots = pl.read_parquet(_shots_path)
         _shot_output = shot_map(_shots)
     else:
-        _shot_output = mo.md(
-            f"Shot map omitted: there is no cached {_season}/{_season + 1} Understat shot table. Review the access "
-            "notes and ingestion command in `docs/data-sources.md`."
-        )
+        _shot_output = mo.md(f"Shot map omitted: there is no cached {_season}/{_season + 1} Understat shot table.")
     _shot_output
 
 

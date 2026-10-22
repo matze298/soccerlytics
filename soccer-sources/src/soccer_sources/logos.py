@@ -1,7 +1,6 @@
 """Explicit download and cache access for club crests used in local plots."""
 
 import json
-import unicodedata
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.error import HTTPError, URLError
@@ -10,6 +9,7 @@ from urllib.request import Request, urlopen
 
 from soccer_sources.cache import DEFAULT_CACHE_DIR
 from soccer_sources.leagues import League, get_league
+from soccer_sources.team_names import normalize_team_name
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -23,111 +23,6 @@ _LEAGUE_FOLDERS = {
     "serie-a": "Italy - Serie A",
     "ligue-1": "France - Ligue 1",
 }
-_TEAM_ALIASES = {
-    "1. FC Köln": "1.FC Köln",
-    "FC Cologne": "1.FC Köln",
-    "1. FC Union Berlin": "1.FC Union Berlin",
-    "1. FSV Mainz 05": "1.FSV Mainz 05",
-    "Augsburg": "FC Augsburg",
-    "Bayern München": "Bayern Munich",
-    "Borussia M.Gladbach": "Borussia Mönchengladbach",
-    "Elversberg": "SV 07 Elversberg",
-    "Hoffenheim": "TSG 1899 Hoffenheim",
-    "Mainz 05": "1.FSV Mainz 05",
-    "Werder Bremen": "SV Werder Bremen",
-    "Bayer Leverkusen": "Bayer 04 Leverkusen",
-    "Freiburg": "SC Freiburg",
-    "Paderborn": "SC Paderborn 07",
-    "RasenBallsport Leipzig": "RB Leipzig",
-    "Schalke 04": "FC Schalke 04",
-    "Union Berlin": "1.FC Union Berlin",
-    "Arsenal": "Arsenal FC",
-    "Bournemouth": "AFC Bournemouth",
-    "Brentford": "Brentford FC",
-    "Brighton": "Brighton & Hove Albion",
-    "Chelsea": "Chelsea FC",
-    "Liverpool": "Liverpool FC",
-    "Manchester United FC": "Manchester United",
-    "Tottenham": "Tottenham Hotspur",
-    "Sunderland": "Sunderland AFC",
-    "West Ham": "West Ham United",
-    "Wolves": "Wolverhampton Wanderers",
-    "Coventry": "Coventry City",
-    "Everton": "Everton FC",
-    "Fulham": "Fulham FC",
-    "Hull": "Hull City",
-    "Ipswich": "Ipswich Town",
-    "Leeds": "Leeds United",
-    "Athletic Club": "Athletic Bilbao",
-    "Alaves": "Deportivo Alavés",
-    "Atletico Madrid": "Atlético de Madrid",
-    "Barcelona": "FC Barcelona",
-    "Espanyol": "RCD Espanyol Barcelona",
-    "Real Betis": "Real Betis Balompié",
-    "Celta Vigo": "Celta de Vigo",
-    "Elche": "Elche CF",
-    "Getafe": "Getafe CF",
-    "Levante": "Levante UD",
-    "Malaga": "Málaga CF",
-    "Osasuna": "CA Osasuna",
-    "Sevilla": "Sevilla FC",
-    "Valencia": "Valencia CF",
-    "Villarreal": "Villarreal CF",
-    "Deportivo La Coruna": "Deportivo A Coruña",
-    "Milan": "AC Milan",
-    "Inter": "Inter Milan",
-    "Fiorentina": "ACF Fiorentina",
-    "Roma": "AS Roma",
-    "Lazio": "SS Lazio",
-    "Napoli": "SSC Napoli",
-    "Juventus": "Juventus FC",
-    "Bologna": "Bologna FC 1909",
-    "Torino": "Torino FC",
-    "Sassuolo": "US Sassuolo",
-    "Lecce": "US Lecce",
-    "Lyon": "Olympique Lyon",
-    "Marseille": "Olympique Marseille",
-    "Toulouse": "FC Toulouse",
-    "Lille": "LOSC Lille",
-    "Rennes": "Stade Rennais FC",
-    "Brest": "Stade Brestois 29",
-    "Strasbourg": "RC Strasbourg Alsace",
-    "Lens": "RC Lens",
-    "Auxerre": "AJ Auxerre",
-    "Paris SG": "Paris Saint-Germain",
-    "PSG": "Paris Saint-Germain",
-    "Troyes": "ESTAC Troyes",
-    "Atalanta": "Atalanta BC",
-    "Cagliari": "Cagliari Calcio",
-    "Como": "Como 1907",
-    "Frosinone": "Frosinone Calcio",
-    "Genoa": "Genoa CFC",
-    "Monza": "AC Monza",
-    "Udinese": "Udinese Calcio",
-    "Venezia": "Venezia FC",
-    "Angers": "Angers SCO",
-    "Le Havre": "Le Havre AC",
-    "Le Mans": "Le Mans FC",
-    "Lorient": "FC Lorient",
-    "Monaco": "AS Monaco",
-    "Nice": "OGC Nice",
-    "Paris Saint Germain": "Paris Saint-Germain",
-}
-_ALIASES_BY_NORMALIZED = {
-    " ".join(unicodedata.normalize("NFKD", alias).encode("ascii", "ignore").decode().casefold().split()): target
-    for alias, target in _TEAM_ALIASES.items()
-}
-
-
-def normalize_team_name(name: str) -> str:
-    """Normalize common accents and explicit provider/catalog aliases.
-
-    Returns:
-        A case-folded name suitable for matching provider names to catalog entries.
-    """
-    normalized = " ".join(unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().casefold().split())
-    target = _ALIASES_BY_NORMALIZED.get(normalized, name)
-    return " ".join(unicodedata.normalize("NFKD", target).encode("ascii", "ignore").decode().casefold().split())
 
 
 def _cache_directory(league: League, season: int, cache_dir: Path) -> Path:

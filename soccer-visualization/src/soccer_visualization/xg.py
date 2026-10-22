@@ -8,245 +8,12 @@ import plotly.graph_objects as go
 import polars as pl
 from soccer_analysis.xg import team_xg_summary
 
+from soccer_visualization.colors import LEAGUE_COLORS, team_marker_colors
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
 
-TEAM_COLORS = {
-    "Augsburg": "#BA3733",
-    "FC Augsburg": "#BA3733",
-    "Bayer Leverkusen": "#E32219",
-    "Bayer 04 Leverkusen": "#E32219",
-    "Bayern Munich": "#DC052D",
-    "Bayern München": "#DC052D",
-    "FC Bayern München": "#DC052D",
-    "Borussia Dortmund": "#FDE100",
-    "Borussia M.Gladbach": "#000000",
-    "Borussia Mönchengladbach": "#000000",
-    "Eintracht Frankfurt": "#E1000F",
-    "Elversberg": "#111111",
-    "SV Elversberg": "#111111",
-    "FC Cologne": "#ED1C24",
-    "1. FC Köln": "#ED1C24",
-    "Freiburg": "#D50000",
-    "SC Freiburg": "#D50000",
-    "Hamburger SV": "#005CA9",
-    "Hoffenheim": "#1D4F9A",
-    "TSG Hoffenheim": "#1D4F9A",
-    "Mainz 05": "#C3141E",
-    "1. FSV Mainz 05": "#C3141E",
-    "Paderborn": "#111111",
-    "SC Paderborn 07": "#111111",
-    "RasenBallsport Leipzig": "#DD0741",
-    "RB Leipzig": "#DD0741",
-    "Schalke 04": "#004D9D",
-    "FC Schalke 04": "#004D9D",
-    "Union Berlin": "#EB1923",
-    "1. FC Union Berlin": "#EB1923",
-    "VfB Stuttgart": "#E32219",
-    "Werder Bremen": "#008D45",
-    "SV Werder Bremen": "#008D45",
-    "Arsenal": "#EF0107",
-    "Aston Villa": "#670E36",
-    "Bournemouth": "#DA291C",
-    "Brentford": "#E30613",
-    "Brighton": "#0057B8",
-    "Chelsea": "#034694",
-    "Coventry": "#87CEEB",
-    "Crystal Palace": "#1B458F",
-    "Everton": "#003399",
-    "Fulham": "#000000",
-    "Hull": "#F5A12D",
-    "Ipswich": "#0054A6",
-    "Leeds": "#FFCD00",
-    "Liverpool": "#C8102E",
-    "Manchester City": "#6CABDD",
-    "Manchester United": "#DA291C",
-    "Newcastle United": "#241F20",
-    "Nottingham Forest": "#DD0000",
-    "Sunderland": "#EB172B",
-    "Tottenham": "#132257",
-    "Alaves": "#005A9C",
-    "Athletic Club": "#EE2523",
-    "Atletico Madrid": "#CB3524",
-    "Barcelona": "#A50044",
-    "Celta Vigo": "#8AC3EE",
-    "Deportivo La Coruna": "#00529F",
-    "Elche": "#006B3F",
-    "Espanyol": "#007FC8",
-    "Getafe": "#005999",
-    "Levante": "#003DA5",
-    "Malaga": "#009EE0",
-    "Osasuna": "#D91A21",
-    "Racing Santander": "#008A45",
-    "Rayo Vallecano": "#E53027",
-    "Real Betis": "#00954C",
-    "Real Madrid": "#FFFFFF",
-    "Real Sociedad": "#0067B1",
-    "Sevilla": "#D71920",
-    "Valencia": "#000000",
-    "Villarreal": "#F7D117",
-    "AC Milan": "#FB090B",
-    "Atalanta": "#005CA9",
-    "Bologna": "#1A2F6B",
-    "Cagliari": "#C8102E",
-    "Como": "#004B8D",
-    "Fiorentina": "#482E92",
-    "Frosinone": "#FDE100",
-    "Genoa": "#C8102E",
-    "Inter": "#0068A8",
-    "Juventus": "#000000",
-    "Lazio": "#87D8F7",
-    "Lecce": "#FDE100",
-    "Monza": "#E30613",
-    "Napoli": "#00A0DF",
-    "Parma Calcio 1913": "#F3D81B",
-    "Roma": "#8E1B2D",
-    "Sassuolo": "#009B3A",
-    "Torino": "#8A1E2D",
-    "Udinese": "#000000",
-    "Venezia": "#CD212A",
-    "Angers": "#000000",
-    "Auxerre": "#00529F",
-    "Brest": "#E30613",
-    "Le Havre": "#005BAC",
-    "Le Mans": "#E30613",
-    "Lens": "#D71920",
-    "Lille": "#E21E26",
-    "Lorient": "#F58025",
-    "Lyon": "#DA0812",
-    "Marseille": "#009FE3",
-    "Monaco": "#E30613",
-    "Nice": "#D71920",
-    "Paris FC": "#00529F",
-    "Paris Saint Germain": "#004170",
-    "Rennes": "#D71920",
-    "Strasbourg": "#009FE3",
-    "Toulouse": "#5A2D82",
-    "Troyes": "#00529F",
-}
-
-TEAM_SECONDARY_COLORS = {
-    "Augsburg": "#FFFFFF",
-    "FC Augsburg": "#FFFFFF",
-    "Bayer Leverkusen": "#000000",
-    "Bayer 04 Leverkusen": "#000000",
-    "Bayern Munich": "#FFFFFF",
-    "Bayern München": "#FFFFFF",
-    "FC Bayern München": "#FFFFFF",
-    "Borussia Dortmund": "#000000",
-    "Borussia M.Gladbach": "#FFFFFF",
-    "Borussia Mönchengladbach": "#FFFFFF",
-    "Eintracht Frankfurt": "#000000",
-    "Elversberg": "#FFFFFF",
-    "SV Elversberg": "#FFFFFF",
-    "FC Cologne": "#FFFFFF",
-    "1. FC Köln": "#FFFFFF",
-    "Freiburg": "#000000",
-    "SC Freiburg": "#000000",
-    "Hamburger SV": "#FFFFFF",
-    "Hoffenheim": "#FFFFFF",
-    "TSG Hoffenheim": "#FFFFFF",
-    "Mainz 05": "#FFFFFF",
-    "1. FSV Mainz 05": "#FFFFFF",
-    "Paderborn": "#FFFFFF",
-    "SC Paderborn 07": "#FFFFFF",
-    "RasenBallsport Leipzig": "#FFFFFF",
-    "RB Leipzig": "#FFFFFF",
-    "Schalke 04": "#FFFFFF",
-    "FC Schalke 04": "#FFFFFF",
-    "Union Berlin": "#FFFFFF",
-    "1. FC Union Berlin": "#FFFFFF",
-    "VfB Stuttgart": "#FFFFFF",
-    "Werder Bremen": "#FFFFFF",
-    "SV Werder Bremen": "#FFFFFF",
-    "Arsenal": "#9C824A",
-    "Aston Villa": "#95BFE5",
-    "Bournemouth": "#000000",
-    "Brentford": "#FBB800",
-    "Brighton": "#FFCD00",
-    "Chelsea": "#DBA111",
-    "Coventry": "#FFFFFF",
-    "Crystal Palace": "#C41230",
-    "Everton": "#FFFFFF",
-    "Fulham": "#FFFFFF",
-    "Hull": "#000000",
-    "Ipswich": "#DEB400",
-    "Leeds": "#1D428A",
-    "Liverpool": "#00B2A9",
-    "Manchester City": "#1C2C5B",
-    "Manchester United": "#FBE122",
-    "Newcastle United": "#FFFFFF",
-    "Nottingham Forest": "#FFFFFF",
-    "Sunderland": "#FFFFFF",
-    "Tottenham": "#FFFFFF",
-    "Alaves": "#FFFFFF",
-    "Athletic Club": "#FFFFFF",
-    "Atletico Madrid": "#FFFFFF",
-    "Barcelona": "#004D98",
-    "Celta Vigo": "#FFFFFF",
-    "Deportivo La Coruna": "#FFFFFF",
-    "Elche": "#FFFFFF",
-    "Espanyol": "#FFFFFF",
-    "Getafe": "#FFFFFF",
-    "Levante": "#CE1126",
-    "Malaga": "#FFFFFF",
-    "Osasuna": "#13294B",
-    "Racing Santander": "#FFFFFF",
-    "Rayo Vallecano": "#FFFFFF",
-    "Real Betis": "#FFFFFF",
-    "Real Madrid": "#FEBE10",
-    "Real Sociedad": "#FFFFFF",
-    "Sevilla": "#FFFFFF",
-    "Valencia": "#F7B718",
-    "Villarreal": "#005187",
-    "AC Milan": "#000000",
-    "Atalanta": "#000000",
-    "Bologna": "#D81E05",
-    "Cagliari": "#003DA5",
-    "Como": "#FFFFFF",
-    "Fiorentina": "#FFFFFF",
-    "Frosinone": "#002D62",
-    "Genoa": "#003DA5",
-    "Inter": "#000000",
-    "Juventus": "#FFFFFF",
-    "Lazio": "#FFFFFF",
-    "Lecce": "#D71920",
-    "Monza": "#FFFFFF",
-    "Napoli": "#FFFFFF",
-    "Parma Calcio 1913": "#00529F",
-    "Roma": "#F0A500",
-    "Sassuolo": "#000000",
-    "Torino": "#FFFFFF",
-    "Udinese": "#FFFFFF",
-    "Venezia": "#00843D",
-    "Angers": "#FFFFFF",
-    "Auxerre": "#FFFFFF",
-    "Brest": "#FFFFFF",
-    "Le Havre": "#000000",
-    "Le Mans": "#FDE100",
-    "Lens": "#FDE100",
-    "Lille": "#00529F",
-    "Lorient": "#000000",
-    "Lyon": "#00529F",
-    "Marseille": "#FFFFFF",
-    "Monaco": "#FFFFFF",
-    "Nice": "#000000",
-    "Paris FC": "#D71920",
-    "Paris Saint Germain": "#DA291C",
-    "Rennes": "#000000",
-    "Strasbourg": "#00529F",
-    "Toulouse": "#FFFFFF",
-    "Troyes": "#FFFFFF",
-}
-
-LEAGUE_COLORS = {
-    "bundesliga": "#D71920",
-    "premier-league": "#6C1D45",
-    "la-liga": "#F4A900",
-    "serie-a": "#0066B3",
-    "ligue-1": "#091C3E",
-}
 _MIN_REGRESSION_POINTS = 2
 
 
@@ -316,18 +83,9 @@ def _set_player_marker_borders(figure: go.Figure) -> None:
     for trace in figure.data:
         if isinstance(trace, go.Scatter) and trace.mode == "markers":
             trace.marker.line = {
-                "color": _team_marker_colors(str(trace.name))[1],
+                "color": team_marker_colors(str(trace.name))[1],
                 "width": 1.5,
             }
-
-
-def _team_marker_colors(team: str) -> tuple[str, str]:
-    """Return visible fill and secondary border colors for a team's player markers."""
-    primary = TEAM_COLORS.get(team, "#3F536B")
-    secondary = TEAM_SECONDARY_COLORS.get(team, "#FFFFFF")
-    if primary.upper() in {"#FFF", "#FFFFFF"}:
-        return secondary, primary
-    return primary, secondary
 
 
 def _player_scatter(
@@ -357,7 +115,7 @@ def _player_scatter(
         .with_columns((pl.col("goals") - pl.col("xg")).alias("goals_minus_xg"))
         .drop_nulls(["goals", "xg"])
     )
-    team_colors = {team: _team_marker_colors(team)[0] for team in summary.get_column("team").unique().to_list()}
+    team_colors = {team: team_marker_colors(team)[0] for team in summary.get_column("team").unique().to_list()}
     hover_data = {"goals_minus_xg": ":.2f"}
     if league_detail:
         hover_data["league"] = True
@@ -423,7 +181,7 @@ def _add_team_markers(
         key: str | tuple[str, str] = (league, team) if league is not None else team
         path = logo_paths.get(key)  # type: ignore[arg-type]
         source = _logo_source(path)
-        color = _team_marker_colors(team)[0]
+        color = team_marker_colors(team)[0]
         if league is not None:
             color = LEAGUE_COLORS.get(league, color)
         colors.append(color)
@@ -643,7 +401,7 @@ def multi_league_team_xg_for_against_per90(  # ruff: ignore[too-many-locals] - P
         source = _logo_source(logo_mapping.get((league, team)))
         if source is None:
             missing_rows.append(row)
-            missing_colors.append(_team_marker_colors(team)[0])
+            missing_colors.append(team_marker_colors(team)[0])
         else:
             figure.add_layout_image(
                 source=source,

@@ -28,15 +28,12 @@ def ingest_understat(
     league: str = typer.Option("bundesliga", help="soccerdata-compatible league code."),
     season: int = typer.Option(2025, help="Season start year."),
     *,
-    allow_scraping: bool = typer.Option(default=False, help="Acknowledge the access notes in docs/data-sources.md."),
     refresh: bool = typer.Option(default=False, help="Ignore both normalized and provider caches."),
 ) -> None:
-    """Fetch Understat team and player metrics after the explicit access opt-in."""
+    """Fetch and cache Understat team and player metrics."""
     cache_dir = Path(".cache/soccer")
-    teams = load_team_match_stats(league, season, allow_scraping=allow_scraping, refresh=refresh, cache_dir=cache_dir)
-    players = load_player_season_stats(
-        league, season, allow_scraping=allow_scraping, refresh=refresh, cache_dir=cache_dir
-    )
+    teams = load_team_match_stats(league, season, refresh=refresh, cache_dir=cache_dir)
+    players = load_player_season_stats(league, season, refresh=refresh, cache_dir=cache_dir)
     typer.echo(f"Cached {teams.height} team-match rows and {players.height} player rows from Understat.")
 
 

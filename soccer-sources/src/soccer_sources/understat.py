@@ -1,5 +1,6 @@
-"""Opt-in Understat access through the community ``soccerdata`` package."""
+"""Understat access through the community ``soccerdata`` package."""
 
+import os
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -234,8 +235,9 @@ def normalize_shots(
 
 
 def _reader(league: League, season: int, *, refresh: bool, cache_dir: Path) -> tuple[Any, str]:
-    # Keep this import inside the opted-in cache-miss path: soccerdata configures file logging at import time.
-    import soccerdata  # ruff: ignore[import-outside-top-level] - Delay provider setup until an opted-in cache miss.
+    # soccerdata configures file logging at import time, so defer it until an uncached fetch is requested.
+    os.environ.setdefault("SOCCERDATA_DIR", str(cache_dir / "understat" / "soccerdata"))
+    import soccerdata  # ruff: ignore[import-outside-top-level] - Keep third-party logging setup out of package imports.
 
     reader = soccerdata.Understat(
         leagues=league.soccerdata_code,
@@ -253,7 +255,6 @@ def _load_table(  # ruff: ignore[too-many-arguments] - Loader options preserve c
     league: str | League,
     season: int,
     *,
-    allow_scraping: bool,
     refresh: bool,
     cache_dir: Path,
     required_cache_columns: set[str] | None = None,
@@ -264,11 +265,6 @@ def _load_table(  # ruff: ignore[too-many-arguments] - Loader options preserve c
     cached = None if refresh else read_parquet(path)
     if cached is not None and (required_cache_columns is None or required_cache_columns.issubset(cached.columns)):
         return cached
-    if not allow_scraping:
-        message = (
-            "No cached Understat table exists; site access is opt-in. Review docs/data-sources.md before enabling it."
-        )
-        raise RuntimeError(message)
     reader, source_version = _reader(selected, season, refresh=refresh, cache_dir=cache_dir)
     method_reader = getattr(reader, method)
     raw = method_reader(force_cache=True) if force_provider_cache else method_reader()
@@ -281,11 +277,10 @@ def load_matches(
     league: str | League = "bundesliga",
     season: int = 2025,
     *,
-    allow_scraping: bool = False,
     refresh: bool = False,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> pl.DataFrame:
-    """Load and cache Understat schedule rows after explicit access acknowledgement.
+    """Load and cache Understat schedule rows, fetching them when uncached.
 
     Returns:
         A Polars table with the shared match schema.
@@ -296,7 +291,6 @@ def load_matches(
         normalize_schedule,
         league,
         season,
-        allow_scraping=allow_scraping,
         refresh=refresh,
         cache_dir=Path(cache_dir),
     )
@@ -306,7 +300,6 @@ def load_team_match_stats(
     league: str | League = "bundesliga",
     season: int = 2025,
     *,
-    allow_scraping: bool = False,
     refresh: bool = False,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> pl.DataFrame:
@@ -321,7 +314,6 @@ def load_team_match_stats(
         normalize_team_match_stats,
         league,
         season,
-        allow_scraping=allow_scraping,
         refresh=refresh,
         cache_dir=Path(cache_dir),
         required_cache_columns={"xga"},
@@ -333,7 +325,6 @@ def load_player_season_stats(
     league: str | League = "bundesliga",
     season: int = 2025,
     *,
-    allow_scraping: bool = False,
     refresh: bool = False,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> pl.DataFrame:
@@ -348,7 +339,6 @@ def load_player_season_stats(
         normalize_player_season_stats,
         league,
         season,
-        allow_scraping=allow_scraping,
         refresh=refresh,
         cache_dir=Path(cache_dir),
     )
@@ -358,11 +348,10 @@ def load_shots(
     league: str | League = "bundesliga",
     season: int = 2025,
     *,
-    allow_scraping: bool = False,
     refresh: bool = False,
     cache_dir: str | Path = DEFAULT_CACHE_DIR,
 ) -> pl.DataFrame:
-    """Load Understat shot events if permitted and available.
+    """Load and cache Understat shot events.
 
     Returns:
         A Polars table with provider-native shot-event coordinates.
@@ -373,7 +362,6 @@ def load_shots(
         normalize_shots,
         league,
         season,
-        allow_scraping=allow_scraping,
         refresh=refresh,
         cache_dir=Path(cache_dir),
     )

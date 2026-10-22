@@ -3,7 +3,7 @@ name = "soccer-visualization"
 version = "0.1.0"
 description = "Reusable soccer visualizations"
 requires-python = ">=3.14,<3.15"
-dependencies = ["plotly[express]>=6", "polars>=2.0.0", "soccer-analysis"]
+dependencies = ["plotly[express]>=6", "polars>=2.0.0", "soccer-analysis", "soccer-sources"]
 
 [build-system]
 requires = ["uv_build>=0.10,<0.12"]
@@ -11,3 +11,4 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 soccer-analysis = { workspace = true }
+soccer-sources = { workspace = true }

@@ -4,6 +4,8 @@ import base64
 from typing import TYPE_CHECKING
 
 import polars as pl
+from soccer_sources.team_names import normalize_team_name
+from soccer_visualization.colors import TEAM_COLORS, team_marker_colors
 from soccer_visualization.xg import (
     multi_league_player_goals_vs_xg,
     multi_league_team_goals_vs_xg,
@@ -16,6 +18,13 @@ from soccer_visualization.xg import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def test_shared_team_colors_resolve_aliases_without_duplicate_palette_entries() -> None:
+    canonical_names = [normalize_team_name(team) for team in TEAM_COLORS]
+    assert len(canonical_names) == len(set(canonical_names))
+    assert team_marker_colors("Bayern Munich") == team_marker_colors("Bayern München") == ("#DC052D", "#FFFFFF")
+    assert team_marker_colors("Real Madrid") == ("#FEBE10", "#FFFFFF")
 
 
 def test_team_xg_figure_contains_regression_and_r_squared_without_one_to_one_line() -> None:

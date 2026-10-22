@@ -12,6 +12,7 @@ from soccer_sources.logos import (
     load_team_logos,
     normalize_team_name,
 )
+from soccer_sources.team_names import TEAM_ALIASES
 from typer.testing import CliRunner
 
 if TYPE_CHECKING:
@@ -38,46 +39,11 @@ def test_catalog_league_folders_cover_the_big_five() -> None:
 
 
 def test_provider_team_aliases_cover_names_returned_by_big_five_caches() -> None:
-    aliases = {
-        "Bayer Leverkusen": "Bayer 04 Leverkusen",
-        "Freiburg": "SC Freiburg",
-        "Paderborn": "SC Paderborn 07",
-        "RasenBallsport Leipzig": "RB Leipzig",
-        "Schalke 04": "FC Schalke 04",
-        "Union Berlin": "1.FC Union Berlin",
-        "Coventry": "Coventry City",
-        "Everton": "Everton FC",
-        "Fulham": "Fulham FC",
-        "Hull": "Hull City",
-        "Ipswich": "Ipswich Town",
-        "Leeds": "Leeds United",
-        "Celta Vigo": "Celta de Vigo",
-        "Elche": "Elche CF",
-        "Getafe": "Getafe CF",
-        "Levante": "Levante UD",
-        "Malaga": "Málaga CF",
-        "Osasuna": "CA Osasuna",
-        "Sevilla": "Sevilla FC",
-        "Valencia": "Valencia CF",
-        "Villarreal": "Villarreal CF",
-        "Atalanta": "Atalanta BC",
-        "Cagliari": "Cagliari Calcio",
-        "Como": "Como 1907",
-        "Frosinone": "Frosinone Calcio",
-        "Genoa": "Genoa CFC",
-        "Monza": "AC Monza",
-        "Udinese": "Udinese Calcio",
-        "Venezia": "Venezia FC",
-        "Angers": "Angers SCO",
-        "Le Havre": "Le Havre AC",
-        "Le Mans": "Le Mans FC",
-        "Lorient": "FC Lorient",
-        "Monaco": "AS Monaco",
-        "Nice": "OGC Nice",
-        "Paris Saint Germain": "Paris Saint-Germain",
-    }
-
-    assert all(normalize_team_name(source) == normalize_team_name(catalog) for source, catalog in aliases.items())
+    assert all(
+        normalize_team_name(alias) == normalize_team_name(canonical)
+        for canonical, aliases in TEAM_ALIASES.items()
+        for alias in aliases
+    )
 
 
 def test_load_team_logos_is_cache_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -152,6 +118,67 @@ def test_fetch_team_logos_downloads_known_alias_and_reports_unmatched(
     assert result["Bayern München"].read_bytes() == b"bayern png"
     assert len(calls) == 2
     assert (tmp_path / "logos" / "bundesliga" / "2026" / "teams.json").exists()
+
+
+def test_fetch_team_logos_resolves_heidenheim_and_st_pauli_in_2025_catalog(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    files = [
+        {"name": "1.FC Heidenheim 1846.png", "download_url": "https://raw.githubusercontent.com/heidenheim.png"},
+        {"name": "FC St. Pauli.png", "download_url": "https://raw.githubusercontent.com/st-pauli.png"},
+    ]
+
+    def fake_request(url: str) -> bytes:
+        if "api.github.com" in url:
+            return json.dumps(files).encode()
+        return b"crest image"
+
+    monkeypatch.setattr("soccer_sources.logos._request_bytes", fake_request)
+
+    logos = fetch_team_logos("bundesliga", 2025, team_names=["Heidenheim", "St. Pauli"], cache_dir=tmp_path)
+
+    assert set(logos) == {"Heidenheim", "St. Pauli"}
+    assert {path.name for path in logos.values()} == {"1.FC Heidenheim 1846.png", "FC St. Pauli.png"}
+
+
+def test_fetch_team_logos_downloads_full_la_liga_2025_roster(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    teams = [
+        "Athletic Bilbao",
+        "Atlético de Madrid",
+        "CA Osasuna",
+        "Celta de Vigo",
+        "Deportivo Alavés",
+        "Elche CF",
+        "FC Barcelona",
+        "Getafe CF",
+        "Girona FC",
+        "Levante UD",
+        "RCD Espanyol Barcelona",
+        "RCD Mallorca",
+        "Rayo Vallecano",
+        "Real Betis Balompié",
+        "Real Madrid",
+        "Real Oviedo",
+        "Real Sociedad",
+        "Sevilla FC",
+        "Valencia CF",
+        "Villarreal CF",
+    ]
+    entries = [
+        {"name": f"{team}.png", "download_url": f"https://raw.githubusercontent.com/{team}.png"} for team in teams
+    ]
+
+    def fake_request(url: str) -> bytes:
+        if "api.github.com" in url:
+            return json.dumps(entries).encode()
+        return b"crest image"
+
+    monkeypatch.setattr("soccer_sources.logos._request_bytes", fake_request)
+
+    logos = fetch_team_logos("la-liga", 2025, cache_dir=tmp_path)
+
+    assert len(logos) == 20
+    assert {path.stem for path in logos.values()} == set(teams)
 
 
 def test_fetch_team_logos_uses_cached_mapping_without_refresh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
